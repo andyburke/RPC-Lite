@@ -11,6 +11,44 @@ use Data::Dumper;
 
 our $VERSION = "0.0.1";
 
+=pod
+
+=head1 NAME
+
+RPC::Lite::Client - Lightweight RPC client framework.
+
+=head1 SYNOPSIS
+
+  use RPC::Lite::Client;
+  use RPC::Lite::Transport::TCP;
+  use RPC::Lite::Serializer::JSON;
+
+  my $client = RPC::Lite::Client->new(
+    {
+      Transport  => RPC::Lite::Transport::TCP->new(
+        {
+          Host => 'localhost',
+          Port => 10000
+        }
+      ),
+      Serializer => RPC::Lite::Serializer::JSON->new(),
+    }
+  );
+
+  my $result = $client->Request('Hello World');
+
+=head1 DESCRIPTION
+
+RPC::Lite::Client implements a very lightweight remote process
+communications client framework.  It can use arbitrary Transport
+(RPC::Lite::Transport) and Serialization (RPC::Lite::Serializer)
+mechanisms.
+
+The overriding goal of RPC::Lite is simplicity and elegant error
+handling.
+
+=cut
+
 sub Serializer { $_[0]->{serializer} = $_[1] if @_ > 1; $_[0]->{serializer} }
 sub Transport  { $_[0]->{transport}  = $_[1] if @_ > 1; $_[0]->{transport} }
 sub IdCounter  { $_[0]->{idcounter}  = $_[1] if @_ > 1; $_[0]->{idcounter} }

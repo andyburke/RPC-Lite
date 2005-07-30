@@ -7,6 +7,44 @@ use RPC::Lite::Error;
 
 our $VERSION = "0.0.1";
 
+=pod
+
+=head1 NAME
+
+RPC::Lite::Server - Lightweight RPC server framework.
+
+=head1 SYNOPSIS
+
+  use RPC::Lite::Server;
+  use RPC::Lite::Transport::TCP;
+  use RPC::Lite::Serializer::JSON;
+
+  my $server = RPC::Lite::Server->new(
+    {
+      Transport  => RPC::Lite::Transport::TCP->new(
+        {
+          ListenPort => 10000
+        }
+      ),
+      Serializer => RPC::Lite::Serializer::JSON->new(),
+    }
+  );
+
+  $server->Loop(); # never returns
+
+=head1 DESCRIPTION
+
+RPC::Lite::Server implements a very lightweight remote process
+communications server framework.  It can use arbitrary Transport
+(RPC::Lite::Transport) and Serialization (RPC::Lite::Serializer)
+mechanisms.
+
+The overriding goal of RPC::Lite is simplicity and elegant error
+handling.
+
+=cut
+
+
 sub Serializer             { $_[0]->{serializer}             = $_[1] if @_ > 1; $_[0]->{serializer} }
 sub Transport              { $_[0]->{transport}              = $_[1] if @_ > 1; $_[0]->{transport} }
 sub ImplementationPackages { $_[0]->{implementationpackages} = $_[1] if @_ > 1; $_[0]->{implementationpackages} }
