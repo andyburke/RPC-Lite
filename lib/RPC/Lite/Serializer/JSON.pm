@@ -145,10 +145,10 @@ sub SanitizeData
   my $blessedThings = get_blessed($data);
   foreach my $blessedThing (@$blessedThings)
   {
-    warn("Unblessing type [" . ref($blessedThing) . "]");
+    warn("Blessed type [" . ref($blessedThing) . "]");
   }
 
-  unbless($data);
+  #unbless($data);
 
 =pod
 
