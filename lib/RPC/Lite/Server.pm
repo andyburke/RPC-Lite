@@ -208,7 +208,9 @@ sub DispatchRequest
       # defined($type) seems not to work?
       if(length($type) && !($type eq 'HASH' or $type eq 'ARRAY'))
       {
-        die("I cannot encode the type: [$type]");
+        my $newType = 'HASH'; # just try a hash, screw people w/ their silly arrays
+        warn("Re-blessing: [$type] as [$newType]");
+        bless $response, $newType;
       }
       # method just returned some plain data, so we construct a Response object with it
       $response = RPC::Lite::Response->new($response);
