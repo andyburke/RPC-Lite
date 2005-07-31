@@ -163,6 +163,8 @@ sub SanitizeData
     }
   }
 
+  print "Sanitized Data:\n\n  ", Dumper($dataRef), "\n\n" if $DEBUG;
+
   return $dataRef;
 }
 
