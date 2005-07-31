@@ -8,6 +8,7 @@ use RPC::Lite::Notification;
 use RPC::Lite::Error;
 
 use JSON;
+use Data::Structure::Util qw(unbless);
 
 use Data::Dumper;
 
@@ -139,12 +140,18 @@ sub SanitizeData
   my $self = shift;
   my $dataRef = shift;
 
+  print "Unsanitized Data:\n\n  ", Dumper($$dataRef), "\n\n" if $DEBUG;
+
+  unbless($$dataRef);
+
+=pod
+
   my $type = ref($$dataRef);
 
   if(length($type) && !($type eq 'HASH' or $type eq 'ARRAY'))
   {
-    my $newType = 'HASH'; # just try a hash, screw people w/ their silly arrays
-    warn("WARNING: Re-blessing: [$type] as [$newType]");
+    my $newType = undef;
+    warn("WARNING: unblessing: [$type]");
     bless $$dataRef, $newType;
     $self->SanitizeData($dataRef); # now we can try to re-sanitize it as a hash
   }
@@ -163,7 +170,9 @@ sub SanitizeData
     }
   }
 
-  print "Sanitized Data:\n\n  ", Dumper($dataRef), "\n\n" if $DEBUG;
+=cut
+
+  print "Sanitized Data:\n\n  ", Dumper($$dataRef), "\n\n" if $DEBUG;
 
   return $dataRef;
 }
@@ -177,7 +186,7 @@ sub _Debug
 
   print qq{
     $action
-    =================================================================================
+    ===================================================================
 
       input:
          
@@ -187,7 +196,7 @@ sub _Debug
        
         $output
       
-      =================================================================================
+    ===================================================================
     
   };
 }
