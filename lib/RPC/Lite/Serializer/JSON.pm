@@ -86,6 +86,7 @@ sub Serialize
     # unbless w/ Data::Structure::Util?
   }
 
+  $self->SanitizeData(\$object);
   my $data = objToJson($object);
 
   $self->_Debug('Serializing', Dumper($object), $data) if($DEBUG);
@@ -131,6 +132,37 @@ sub Deserialize
   $self->_Debug('Deserializing', $data, Dumper($result)) if($DEBUG);
     
   return $result;
+}
+
+sub SanitizeData
+{
+  my $self = shift;
+  my $dataRef = shift;
+
+  my $type = ref($$dataRef);
+
+  if(length($type) && !($type eq 'HASH' or $type eq 'ARRAY'))
+  {
+    my $newType = 'HASH'; # just try a hash, screw people w/ their silly arrays
+    warn("WARNING: Re-blessing: [$type] as [$newType]");
+    bless $$dataRef, $newType;
+  }
+  elsif($type eq 'ARRAY')
+  {
+    foreach my $element (@{$$dataRef})
+    {
+      $self->SanitizeData(\$element);
+    }
+  }
+  elsif($type eq 'HASH')
+  {
+    foreach my $key (keys %{$$dataRef})
+    {
+      $self->SanitizeData(\$$dataRef->{$key});
+    }
+  }
+
+  return $dataRef;
 }
 
 sub _Debug

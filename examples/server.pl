@@ -6,6 +6,8 @@ use RPC::Lite::Serializer::JSON;
 
 use Error;
 
+use BadPackage;
+
 my $server = TestServer->new(
   {
     Transport  => RPC::Lite::Transport::TCP->new( { ListenPort => 10000 } ),
@@ -78,16 +80,3 @@ sub BadHash
   return { a => BadPackage->new(), b => BadPackage->new() };
 }
 
-package BadPackage;
-
-sub new
-{
-  my $class = shift;
-  my $self = {};
-  bless $self, $class;
-
-  $self->{scalar} = 'scalar text';
-  $self->{hashref} = { a => 1, b => 2 };
-  $self->{arrayref} = [1, 2, 3];
-  return $self;
-}

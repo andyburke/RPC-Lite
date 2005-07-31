@@ -7,6 +7,8 @@ use RPC::Lite::Serializer::JSON;
 
 use Data::Dumper;
 
+use BadPackage;
+
 my $client = RPC::Lite::Client->new(
                                      {
                                        Transport  => RPC::Lite::Transport::TCP->new( { Host => 'localhost', Port => 10000 } ),
@@ -41,6 +43,15 @@ print "BadArray: \n", Dumper($badArray), "\n\n";
 my $badHash = $client->Request( 'BadHash' );
 print "BadHash: \n", Dumper($badHash), "\n\n";
 
+my $badDataInCall = $client->Request('add', BadPackage->new());
+print "BadDataInCall: \n", Dumper($badDataInCall) . "\n\n";
+
+my $badArrayInCall = $client->Request('add', [BadPackage->new(), BadPackage->new()]);
+print "BadArrayInCall: \n", Dumper($badArrayInCall), "\n\n";
+
+my $badHashInCall = $client->Request('add', { a => BadPackage->new(), b => BadPackage->new() });
+print "BadHashInCall: \n", Dumper($badHashInCall), "\n\n";
+
 print "Broken: sending as a notification.  You should see no output on the next line\n";
 $client->Notify('Broken');
 print "\n";
@@ -49,3 +60,6 @@ print "Broken: sending as a Request.  You should see an error message next, then
 $client->Request('Broken');
 
 print "\nERROR!  The previous call should have died and quit the script!\n";
+
+
+
