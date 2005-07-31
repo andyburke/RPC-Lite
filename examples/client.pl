@@ -43,14 +43,22 @@ print "BadArray: \n", Dumper($badArray), "\n\n";
 my $badHash = $client->Request( 'BadHash' );
 print "BadHash: \n", Dumper($badHash), "\n\n";
 
+my $badNestedData = $client->Request( 'BadNestedData' );
+print "BadNestedData: \n", Dumper($badNestedData), "\n\n";
+
 my $badDataInCall = $client->Request('add', BadPackage->new());
-print "BadDataInCall: \n", Dumper($badDataInCall) . "\n\n";
+print "BadDataInCall: \n", Dumper($badDataInCall), "\n\n";
 
 my $badArrayInCall = $client->Request('add', [BadPackage->new(), BadPackage->new()]);
 print "BadArrayInCall: \n", Dumper($badArrayInCall), "\n\n";
 
 my $badHashInCall = $client->Request('add', { a => BadPackage->new(), b => BadPackage->new() });
 print "BadHashInCall: \n", Dumper($badHashInCall), "\n\n";
+
+my $bp = BadPackage->new();
+$bp->{bp} = BadPackage->new();
+my $badNestedDataInCall = $client->Request('add', $bp);
+print "BadNestedDataInCall: ", Dumper($badNestedDataInCall), "\n\n";
 
 print "Broken: sending as a notification.  You should see no output on the next line\n";
 $client->Notify('Broken');

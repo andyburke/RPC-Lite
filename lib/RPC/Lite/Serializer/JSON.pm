@@ -146,6 +146,7 @@ sub SanitizeData
     my $newType = 'HASH'; # just try a hash, screw people w/ their silly arrays
     warn("WARNING: Re-blessing: [$type] as [$newType]");
     bless $$dataRef, $newType;
+    $self->SanitizeData($dataRef); # now we can try to re-sanitize it as a hash
   }
   elsif($type eq 'ARRAY')
   {

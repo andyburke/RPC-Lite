@@ -80,3 +80,9 @@ sub BadHash
   return { a => BadPackage->new(), b => BadPackage->new() };
 }
 
+sub BadNestedData
+{
+  my $bp = BadPackage->new();
+  $bp->{bp} = BadPackage->new();
+  return $bp;
+}
