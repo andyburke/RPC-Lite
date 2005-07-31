@@ -204,6 +204,12 @@ sub DispatchRequest
     elsif ( !UNIVERSAL::isa( $response, 'RPC::Lite::Response' ) )
     {
 
+      my $type = ref($response);
+      # defined($type) seems not to work?
+      if(length($type) && !($type eq 'HASH' or $type eq 'ARRAY'))
+      {
+        die("I cannot encode the type: [$type]");
+      }
       # method just returned some plain data, so we construct a Response object with it
       $response = RPC::Lite::Response->new($response);
     }
