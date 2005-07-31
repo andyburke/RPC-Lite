@@ -8,7 +8,7 @@ use RPC::Lite::Notification;
 use RPC::Lite::Error;
 
 use JSON;
-use Data::Structure::Util qw(unbless);
+use Data::Structure::Util qw(unbless get_blessed);
 
 use Data::Dumper;
 
@@ -141,6 +141,12 @@ sub SanitizeData
   my $data = shift;
 
   print "Unsanitized Data:\n\n  ", Dumper($data), "\n\n" if $DEBUG;
+
+  my $blessedThings = get_blessed($data);
+  foreach my $blessedThing (@$blessedThings)
+  {
+    warn("Unblessing type [" . ref($blessedThing) . "]");
+  }
 
   unbless($data);
 
