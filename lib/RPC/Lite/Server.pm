@@ -215,7 +215,7 @@ $DB::single = 1;
   {
 
     # implementation package doesn't have the method
-    $response = RPC::Lite::Error->new("unknown method");
+    $response = RPC::Lite::Error->new("unknown method: $method");
   }
 
   $response->Id( $request->Id );    # make sure the response's id matches the request's id
