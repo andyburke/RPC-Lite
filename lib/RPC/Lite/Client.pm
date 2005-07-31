@@ -155,7 +155,6 @@ Sends a notification to the server, expects no response.
 sub Notify
 {
   my $self = shift;
-$DB::single=1;
   $self->SendRequest( RPC::Lite::Notification->new( shift, \@_ ) );    # method and params arrayref
 }
 

@@ -182,7 +182,6 @@ sub DispatchRequest
   my $method = $self->FindMethod( $request->Method );
   my $response;
 
-$DB::single = 1;
   if ($method)
   {
 

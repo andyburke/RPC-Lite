@@ -27,7 +27,6 @@ sub new
   my $class = shift;
   my $args = shift;
 
-  $DB::single=1;
   my $self = {};
   bless $self, $class;
 
@@ -62,7 +61,6 @@ sub ReadResponseContent
 {
   my $self = shift;
 
-  $DB::single=1;
   return undef if !$self->IsClient;
   return undef if !$self->IsConnected;
 
@@ -85,7 +83,6 @@ sub WriteRequestContent
   my $self    = shift;
   my $content = shift;
 
-  $DB::single=1;
   return undef if !$self->IsClient;
   
   $self->Connect or return undef;
@@ -99,7 +96,6 @@ sub Connect
 {
   my $self = shift;
 
-  $DB::single=1;
   return undef if !$self->IsClient;
 
   return 1 if $self->IsConnected;
