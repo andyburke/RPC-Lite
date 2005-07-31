@@ -204,14 +204,7 @@ sub DispatchRequest
     elsif ( !UNIVERSAL::isa( $response, 'RPC::Lite::Response' ) )
     {
 
-      my $type = ref($response);
-      # defined($type) seems not to work?
-      if(length($type) && !($type eq 'HASH' or $type eq 'ARRAY'))
-      {
-        my $newType = 'HASH'; # just try a hash, screw people w/ their silly arrays
-        warn("Re-blessing: [$type] as [$newType]");
-        bless $response, $newType;
-      }
+      $self->SanitizeData(\$response);
       # method just returned some plain data, so we construct a Response object with it
       $response = RPC::Lite::Response->new($response);
     }
@@ -230,4 +223,32 @@ sub DispatchRequest
   return $response;
 }
 
+sub SanitizeData
+{
+  my $self = shift;
+  my $dataRef = shift;
+
+  my $type = ref($$dataRef);
+
+  if(length($type) && !($type eq 'HASH' or $type eq 'ARRAY'))
+  {
+    my $newType = 'HASH'; # just try a hash, screw people w/ their silly arrays
+    warn("Re-blessing: [$type] as [$newType]");
+    bless $$dataRef, $newType;
+  }
+  elsif($type eq 'ARRAY')
+  {
+    foreach my $element (@{$$dataRef})
+    {
+      $self->SanitizeData(\$element);
+    }
+  }
+  elsif($type eq 'HASH')
+  {
+    foreach my $key (keys %{$$dataRef})
+    {
+      $self->SanitizeData(\$$dataRef->{$key});
+    }
+  }
+}
 1;

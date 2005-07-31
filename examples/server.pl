@@ -62,3 +62,32 @@ sub Broken
 
   throw Error::Simple("the server. it crush.");
 }
+
+sub BadType
+{
+  return BadPackage->new(); 
+}
+
+sub BadArray
+{
+  return [BadPackage->new(), BadPackage->new(), BadPackage->new()];
+}
+
+sub BadHash
+{
+  return { a => BadPackage->new(), b => BadPackage->new() };
+}
+
+package BadPackage;
+
+sub new
+{
+  my $class = shift;
+  my $self = {};
+  bless $self, $class;
+
+  $self->{scalar} = 'scalar text';
+  $self->{hashref} = { a => 1, b => 2 };
+  $self->{arrayref} = [1, 2, 3];
+  return $self;
+}

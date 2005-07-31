@@ -32,6 +32,15 @@ print "MergeArrays: \n", Dumper($array1), Dumper($array2), Dumper($array), "\n\n
 my $s_array = $client->Request( 'SortArray', $array );
 print "SortArray: \n", Dumper($array), Dumper($s_array), "\n\n";
 
+my $badType = $client->Request( 'BadType' );
+print "BadType: \n", Dumper($badType), "\n\n";
+
+my $badArray = $client->Request( 'BadArray' );
+print "BadArray: \n", Dumper($badArray), "\n\n";
+
+my $badHash = $client->Request( 'BadHash' );
+print "BadHash: \n", Dumper($badHash), "\n\n";
+
 print "Broken: sending as a notification.  You should see no output on the next line\n";
 $client->Notify('Broken');
 print "\n";
