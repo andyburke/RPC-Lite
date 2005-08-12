@@ -34,6 +34,12 @@ print "MergeArrays: \n", Dumper($array1), Dumper($array2), Dumper($array), "\n\n
 my $s_array = $client->Request( 'SortArray', $array );
 print "SortArray: \n", Dumper($array), Dumper($s_array), "\n\n";
 
+my $uptime = $client->Request( 'server.Uptime' );
+print "Uptime:\n  $uptime\n\n";
+
+my $requestCount = $client->Request( 'server.RequestCount' );
+print "Request Count:\n  $requestCount\n\n";
+
 my $badType = $client->Request( 'BadType' );
 print "BadType: \n", Dumper($badType), "\n\n";
 

@@ -5,7 +5,7 @@ use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Error;
 
-our $VERSION = "0.0.1";
+our $VERSION = "0.0.2";
 
 =pod
 
@@ -44,10 +44,16 @@ handling.
 
 =cut
 
+my %defaultMethods = (
+                       'server.Uptime'       => \&RpcUptime,
+                       'server.RequestCount' => \&RpcRequestCount,    
+                     );
 
 sub Serializer             { $_[0]->{serializer}             = $_[1] if @_ > 1; $_[0]->{serializer} }
 sub Transport              { $_[0]->{transport}              = $_[1] if @_ > 1; $_[0]->{transport} }
 sub ImplementationPackages { $_[0]->{implementationpackages} = $_[1] if @_ > 1; $_[0]->{implementationpackages} }
+sub StartTime              { $_[0]->{starttime}              = $_[1] if @_ > 1; $_[0]->{starttime} }
+sub RequestCount           { $_[0]->{requestcount}           = $_[1] if @_ > 1; $_[0]->{requestcount} }
 
 sub new
 {
@@ -56,6 +62,9 @@ sub new
 
   my $self = {};
   bless $self, $class;
+
+  $self->StartTime( time() );
+  $self->RequestCount(0);
 
   $self->ImplementationPackages( $args->{ImplementationPackages} or [$class] );    # default MO is to subclass a Server implementation subclass
 
@@ -164,6 +173,11 @@ sub FindMethod
     }
   }
 
+  if ( my $coderef = $defaultMethods{$methodName} )
+  {
+    return $coderef;
+  }
+
   return undef;
 }
 
@@ -179,6 +193,8 @@ sub DispatchRequest
 {
   my ( $self, $request ) = @_;
 
+  $self->RequestCount( $self->RequestCount + 1 );
+
   my $method = $self->FindMethod( $request->Method );
   my $response;
 
@@ -189,20 +205,22 @@ sub DispatchRequest
     eval { $response = $method->( $self, @{ $request->Params } ) };    # may return a pre-encoded Response, or just some data
     if ($@)
     {
+
       # method died
 
       # attempt to detect an Error.pm object
       my $error = $@;
-      if ( UNIVERSAL::isa( $@, 'Error') )
+      if ( UNIVERSAL::isa( $@, 'Error' ) )
       {
-        $error = {%{$@}}; # copy the blessed hashref into a ref to a plain one
-        $error->{jsonclass} = [ref($@), []]; # tell json this is an actual object of some class
+        $error = { %{$@} };                                            # copy the blessed hashref into a ref to a plain one
+        $error->{jsonclass} = [ ref($@), [] ];                         # tell json this is an actual object of some class
       }
-    
-      $response = RPC::Lite::Error->new($error);                           # FIXME security issue - exposing implementation details to the client
+
+      $response = RPC::Lite::Error->new($error);                       # FIXME security issue - exposing implementation details to the client
     }
     elsif ( !UNIVERSAL::isa( $response, 'RPC::Lite::Response' ) )
     {
+
       # method just returned some plain data, so we construct a Response object with it
       $response = RPC::Lite::Response->new($response);
     }
@@ -213,12 +231,31 @@ sub DispatchRequest
   {
 
     # implementation package doesn't have the method
-    $response = RPC::Lite::Error->new("unknown method: " . $request->Method);
+    $response = RPC::Lite::Error->new( "unknown method: " . $request->Method );
   }
 
   $response->Id( $request->Id );    # make sure the response's id matches the request's id
 
   return $response;
 }
+
+
+#=============
+
+
+sub RpcUptime
+{
+  my $self = shift;
+
+  return time() - $self->StartTime;
+}
+
+sub RpcRequestCount
+{
+  my $self = shift;
+  
+  return $self->RequestCount;
+}
+
 
 1;
