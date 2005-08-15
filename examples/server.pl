@@ -86,3 +86,8 @@ sub BadNestedData
   $bp->{bp} = BadPackage->new();
   return $bp;
 }
+
+sub GetUndef
+{
+  return undef;
+}

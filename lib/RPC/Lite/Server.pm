@@ -5,7 +5,7 @@ use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Error;
 
-our $VERSION = "0.0.2";
+my $systemPrefix = 'system';
 
 =pod
 
@@ -45,8 +45,9 @@ handling.
 =cut
 
 my %defaultMethods = (
-                       'server.Uptime'       => \&RpcUptime,
-                       'server.RequestCount' => \&RpcRequestCount,    
+                       "$systemPrefix.Uptime"             => \&RpcUptime,
+                       "$systemPrefix.RequestCount"       => \&RpcRequestCount,
+                       "$systemPrefix.SystemRequestCount" => \&RpcSystemRequestCount,    
                      );
 
 sub Serializer             { $_[0]->{serializer}             = $_[1] if @_ > 1; $_[0]->{serializer} }
@@ -54,6 +55,7 @@ sub Transport              { $_[0]->{transport}              = $_[1] if @_ > 1; 
 sub ImplementationPackages { $_[0]->{implementationpackages} = $_[1] if @_ > 1; $_[0]->{implementationpackages} }
 sub StartTime              { $_[0]->{starttime}              = $_[1] if @_ > 1; $_[0]->{starttime} }
 sub RequestCount           { $_[0]->{requestcount}           = $_[1] if @_ > 1; $_[0]->{requestcount} }
+sub SystemRequestCount     { $_[0]->{systemrequestcount}     = $_[1] if @_ > 1; $_[0]->{systemrequestcount} }
 
 sub new
 {
@@ -65,6 +67,7 @@ sub new
 
   $self->StartTime( time() );
   $self->RequestCount(0);
+  $self->SystemRequestCount(0);
 
   $self->ImplementationPackages( $args->{ImplementationPackages} or [$class] );    # default MO is to subclass a Server implementation subclass
 
@@ -193,7 +196,16 @@ sub DispatchRequest
 {
   my ( $self, $request ) = @_;
 
-  $self->RequestCount( $self->RequestCount + 1 );
+  ###########################################################
+  ## keep track of how many method calls we've handled...
+  if ( $request->Method !~ /^$systemPrefix\./ )
+  {
+    $self->RequestCount( $self->RequestCount + 1 );
+  }
+  else
+  {
+    $self->SystemRequestCount( $self->SystemRequestCount + 1 );
+  }
 
   my $method = $self->FindMethod( $request->Method );
   my $response;
@@ -239,9 +251,7 @@ sub DispatchRequest
   return $response;
 }
 
-
 #=============
-
 
 sub RpcUptime
 {
@@ -253,9 +263,15 @@ sub RpcUptime
 sub RpcRequestCount
 {
   my $self = shift;
-  
+
   return $self->RequestCount;
 }
 
+sub RpcSystemRequestCount
+{
+  my $self = shift;
+
+  return $self->SystemRequestCount;
+}
 
 1;

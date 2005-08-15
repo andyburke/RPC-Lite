@@ -2,7 +2,20 @@ package RPC::Lite;
 
 # documentation/placeholder package
 
-our $VERSION = '0.0.1';
+our $VERSION = '0.0.3';
+
+use RPC::Lite::Client;
+use RPC::Lite::Server;
+
+use RPC::Lite::Request;
+use RPC::Lite::Response;
+use RPC::Lite::Error;
+use RPC::Lite::Notification;
+
+use RPC::Lite::Transport::TCP;
+
+use RPC::Lite::Serializer::JSON;
+use RPC::Lite::Serializer::Null;    
 
 =pod
 

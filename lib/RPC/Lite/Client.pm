@@ -9,8 +9,6 @@ use RPC::Lite::Notification;
 
 use Data::Dumper;
 
-our $VERSION = "0.0.1";
-
 =pod
 
 =head1 NAME
