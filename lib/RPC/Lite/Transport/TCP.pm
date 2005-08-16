@@ -75,6 +75,7 @@ sub ReadResponseContent
     return undef if $!;
   }
 
+  chop($content); # remove termination character
   return $content;
 }
 
@@ -176,6 +177,7 @@ sub ReadRequestContent
   }
   $self->CurrentSocket($socket);
 
+  chop($content); # eat off termination character
   return $content;
 }
 
