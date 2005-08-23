@@ -58,6 +58,28 @@ sub SortArray
   return [ sort @$array ];
 }
 
+sub Undef
+{
+  my ($server) = @_;
+
+  return undef;
+}
+
+sub UndefArray
+{
+  return [undef, undef, undef, undef];
+}
+
+sub MixedUndefArray
+{
+  return [1, 2, undef, 3];
+}
+
+sub MixedArray
+{
+  return [1, 2, undef, { blah => 'yak', foo => undef }, [5, 6, undef, 7], 3];
+}
+
 sub Broken
 {
   my ($server) = @_;

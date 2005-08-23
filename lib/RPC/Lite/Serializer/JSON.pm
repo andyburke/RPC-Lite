@@ -87,7 +87,7 @@ sub Serialize
     # unbless w/ Data::Structure::Util?
   }
 
-  $object = $self->SanitizeData($object);
+#  $object = $self->SanitizeData($object);
   my $data = objToJson($object);
 
   $self->_Debug('Serializing', Dumper($object), $data) if($DEBUG);
@@ -103,6 +103,8 @@ sub Deserialize
   length($data) or return undef;
   
   my $object = jsonToObj($data);
+  $self->HandleJSONsNotStringCrap(\$object);
+
   my $result = $object;
 
   if(defined($object->{jsonclass}))
@@ -135,6 +137,35 @@ sub Deserialize
   return $result;
 }
 
+sub HandleJSONsNotStringCrap
+{
+  my $self = shift;
+  my $ref = shift;
+  
+  my $type = ref($$ref);
+  
+  if($type eq 'ARRAY')
+  {
+    foreach my $element (@$$ref)
+    {
+      $self->HandleJSONsNotStringCrap(\$element);
+    }
+  }
+  elsif($type eq 'HASH')
+  {
+    foreach my $key (keys(%$$ref))
+    {
+      $self->HandleJSONsNotStringCrap(\$$ref->{$key});
+    }
+  }
+  elsif($type eq 'JSON::NotString')
+  {
+    $$ref = $$ref->{value};
+  }
+}
+
+=pod
+
 sub SanitizeData
 {
   my $self = shift;
@@ -149,8 +180,6 @@ sub SanitizeData
   }
 
   #unbless($data);
-
-=pod
 
   # using refs can break things, like Class::DBI
 
@@ -178,12 +207,11 @@ sub SanitizeData
     }
   }
 
-=cut
-
   print "Sanitized Data:\n\n  ", Dumper($data), "\n\n" if $DEBUG;
 
   return $data;
 }
+=cut
 
 sub _Debug
 {

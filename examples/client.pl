@@ -43,6 +43,19 @@ print "Request Count:\n  $requestCount\n\n";
 my $systemRequestCount = $client->Request( 'system.SystemRequestCount' );
 print "System Request Count:\n  $systemRequestCount\n\n";
 
+my $undefValue = $client->Request('Undef');
+print "Undef:\n  ", Dumper($undefValue), "\n\n";
+
+my $undefArray = $client->Request('UndefArray');
+print "UndefArray:\n  ", Dumper($undefArray), "\n\n";
+
+my $mixedUndefArray = $client->Request('MixedUndefArray');
+print "MixedUndefArray:\n  ", Dumper($mixedUndefArray), "\n\n";
+
+my $mixedArray = $client->Request("MixedArray");
+print "MixedArray:\n  ", Dumper($mixedArray), "\n\n";
+
+
 my $badType = $client->Request( 'BadType' );
 print "BadType: \n", Dumper($badType), "\n\n";
 
