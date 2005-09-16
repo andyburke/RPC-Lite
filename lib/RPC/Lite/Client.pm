@@ -165,6 +165,12 @@ sub Notify
   $self->SendRequest( RPC::Lite::Notification->new( shift, \@_ ) );    # method and params arrayref
 }
 
+sub Connect
+{
+  my $self = shift;
+  $self->Transport->Connect();
+}
+
 # FIXME sub NotifyResponse, for trapping local transport errors cleanly?
 
 ##############
