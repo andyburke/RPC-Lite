@@ -47,9 +47,10 @@ handling.
 
 =cut
 
-sub Serializer { $_[0]->{serializer} = $_[1] if @_ > 1; $_[0]->{serializer} }
-sub Transport  { $_[0]->{transport}  = $_[1] if @_ > 1; $_[0]->{transport} }
-sub IdCounter  { $_[0]->{idcounter}  = $_[1] if @_ > 1; $_[0]->{idcounter} }
+sub Serializer    { $_[0]->{serializer}    = $_[1] if @_ > 1; $_[0]->{serializer} }
+sub Transport     { $_[0]->{transport}     = $_[1] if @_ > 1; $_[0]->{transport} }
+sub IdCounter     { $_[0]->{idcounter}     = $_[1] if @_ > 1; $_[0]->{idcounter} }
+sub CallbackIdMap { $_[0]->{callbackidmap} = $_[1] if @_ > 1; $_[0]->{callbackidmap} }    
 
 sub new
 {
@@ -63,6 +64,7 @@ sub new
   $self->Transport( $args->{Transport} )   or die('A transport is required!');
 
   $self->IdCounter(1);
+  $self->CallbackIdMap({});
 
   $self->Initialize($args) if ( $self->can('Initialize') );
 
@@ -88,21 +90,22 @@ sub Request
   if ( $response->isa('RPC::Lite::Error') )
   {
     eval { require Error; };
-    if(!$@)
+    if ( !$@ )
     {
-      if (ref($response->Error) eq 'HASH' and defined $response->Error->{jsonclass}[0])
+      if ( ref( $response->Error ) eq 'HASH' and defined $response->Error->{jsonclass}[0] )
       {
         my $objectInitializer = delete $response->Error->{jsonclass};
-        my ($class, @params) = @$objectInitializer;
-        my $errorObject = eval { $class->new(@params) }; # FIXME pass jsonclass constructor params instead?
+        my ( $class, @params ) = @$objectInitializer;
+        my $errorObject = eval { $class->new(@params) };    # FIXME pass jsonclass constructor params instead?
         if ($@)
         {
-          $errorObject = $@; # FIXME improve? this will set the local eval error as the error message so the local user can see what they need to install
+          $errorObject = $@;                                # FIXME improve? this will set the local eval error as the error message so the local user can see what they need to install
         }
         else
         {
+
           # brutalize the errorobject by slamming the key/value pairs straight into it without asking the accessors nicely
-          while (my ($key, $value) = each %{$response->Error})
+          while ( my ( $key, $value ) = each %{ $response->Error } )
           {
             $errorObject->{$key} = $value;
           }
@@ -110,11 +113,29 @@ sub Request
         $response->Error($errorObject);
       }
     }
+
     # this is the "simple" interface to making a request, so we just die to keep it clean for the caller
     die( $response->Error );
   }
 
   return $response->Result;
+}
+
+=item AsyncRequest($callBack, $methodName[, param[, ...]])
+
+Sends an asynchronous request to the server.  Takes a callback code reference.
+
+=cut
+
+sub AsyncRequest
+{
+  my $self       = shift;
+  my $callBack   = shift;
+  my $methodName = shift;
+
+  # SendRequest returns the Id the given request was assigned
+  my $requestId = $self->SendRequest($methodName, @_);
+  $self->CallbackIdMap->{$requestId} = $callBack;
 }
 
 =item RequestResponse($methodName[, param[, ...]])
@@ -129,19 +150,7 @@ sub RequestResponse
   my $self = shift;
 
   $self->SendRequest( RPC::Lite::Request->new( shift, \@_ ) );    # method and params arrayref
-  my $responseContent = $self->Transport->ReadResponseContent;
-  my $response        = $self->Serializer->Deserialize($responseContent);
-
-  if ( !defined($response))
-  {
-    return RPC::Lite::Error->new("received no data from server!");
-  }
-  if ( $response->Id != $self->IdCounter )
-  {
-    return RPC::Lite::Error->new("response id mismatch");
-  }
-
-  return $response;
+  return $self->GetResponse();
 }
 
 =item Notify($methodName[, param[, ...]])
@@ -163,11 +172,49 @@ sub Notify
 
 sub SendRequest
 {
-  my ( $self, $request ) = @_;    # request could be a Notification
+  my ( $self, $request ) = @_;                                         # request could be a Notification
 
   my $id = $self->IdCounter( $self->IdCounter + 1 );
   $request->Id($id);
-  $self->Transport->WriteRequestContent( $self->Serializer->Serialize( $request ) );    
+  $self->Transport->WriteRequestContent( $self->Serializer->Serialize($request) );
+  return $id;
+}
+
+sub GetResponse
+{
+  my $self = shift;
+  my $timeout = shift;
+
+  my $responseContent = $self->Transport->ReadResponseContent($timeout);
+
+  if (!length($responseContent))
+  {
+    if($timeout or $self->Transport->Timeout)
+    {
+      return; # no error, just no response yet
+    }
+    else
+    {
+      return RPC::Lite::Error->new("Error reading data from server!");
+    }
+  }
+  
+  my $response        = $self->Serializer->Deserialize($responseContent);
+
+  if ( !defined($response) )
+  {
+    return RPC::Lite::Error->new("Could not deserialize response!");
+  }
+
+  if(exists($self->CallbackIdMap->{$response->Id}))
+  {
+    $self->CallbackIdMap->{$response->Id}->($response);
+    delete $self->CallbackIdMap->{$response->Id};
+  }
+  else
+  {
+    return $response;
+  }
 }
 
 1;
