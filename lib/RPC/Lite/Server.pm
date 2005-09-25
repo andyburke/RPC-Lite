@@ -1,6 +1,10 @@
 package RPC::Lite::Server;
 
 use strict;
+
+use threads;
+use threads::shared;
+
 use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Error;
@@ -47,7 +51,7 @@ handling.
 my %defaultMethods = (
                        "$systemPrefix.Uptime"             => \&RpcUptime,
                        "$systemPrefix.RequestCount"       => \&RpcRequestCount,
-                       "$systemPrefix.SystemRequestCount" => \&RpcSystemRequestCount,    
+                       "$systemPrefix.SystemRequestCount" => \&RpcSystemRequestCount,
                      );
 
 sub Serializer             { $_[0]->{serializer}             = $_[1] if @_ > 1; $_[0]->{serializer} }
@@ -56,6 +60,9 @@ sub ImplementationPackages { $_[0]->{implementationpackages} = $_[1] if @_ > 1; 
 sub StartTime              { $_[0]->{starttime}              = $_[1] if @_ > 1; $_[0]->{starttime} }
 sub RequestCount           { $_[0]->{requestcount}           = $_[1] if @_ > 1; $_[0]->{requestcount} }
 sub SystemRequestCount     { $_[0]->{systemrequestcount}     = $_[1] if @_ > 1; $_[0]->{systemrequestcount} }
+sub Threaded               { $_[0]->{threaded}               = $_[1] if @_ > 1; $_[0]->{threaded} }
+sub ThreadPool             { $_[0]->{threadpool}             = $_[1] if @_ > 1; $_[0]->{threadpool} }
+sub WorkerThreads          { $_[0]->{workerthreads}          = $_[1] if @_ > 1; $_[0]->{workerthreads} }
 
 sub new
 {
@@ -73,6 +80,29 @@ sub new
 
   $self->Serializer( $args->{Serializer} ) or die('A serializer is required!');
   $self->Transport( $args->{Transport} )   or die('A transport is required!');
+
+  $self->Threaded( $args->{Threaded} );
+  $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : 5 );
+
+  if ( $self->Threaded )
+  {
+    eval { use Thread::Pool; };
+    if ($@)
+    {
+      warn "Disabling threading for lack of Thread::Pool module.";
+      $self->Threaded(0);
+    }
+    else
+    {
+      my $pool = Thread::Pool->new(
+                                    {
+                                      'workers' => $self->WorkerThreads,
+                                      'do'      => 'DispatchRequest',
+                                    }
+                                  );
+      $self->ThreadPool($pool);    
+    }
+  }
 
   $self->Initialize($args) if ( $self->can('Initialize') );
 
