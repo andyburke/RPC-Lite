@@ -112,29 +112,7 @@ sub new
   $self->Threaded( $args->{Threaded} );
   $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
 
-  if ( $self->Threaded )
-  {
-    eval "use Thread::Pool";
-    if ($@)
-    {
-      warn "Disabling threading for lack of Thread::Pool module.";
-      $self->Threaded(0);
-    }
-    else
-    {
-      Debug('threading enabled');
-      my $pool = Thread::Pool->new(
-                                    {
-                                      'workers' => $self->WorkerThreads,
-                                      'do'      => sub { $self->DispatchRequest(@_) },
-                                    }
-                                  );
-      $self->ThreadPool($pool);    
-      $self->PoolJobs({});
-    }
-  }
-
-  $self->Initialize($args) if ( $self->can('Initialize') );
+   $self->Initialize($args) if ( $self->can('Initialize') );
 
   return $self;
 }
@@ -154,6 +132,8 @@ sub Loop
 {
   my $self = shift;
 
+  $self->InitializeThreadPool();
+  
   while (1)
   {
     $self->HandleRequest;
@@ -221,6 +201,32 @@ sub HandleResponses
 
 ##############
 # The following are private methods.
+
+sub InitializeThreadPool
+{
+  my $self = shift;
+  
+  return if !$self->Threaded or $self->ThreadPool;
+
+  eval "use Thread::Pool";
+  if ($@)
+  {
+    warn "Disabling threading for lack of Thread::Pool module.";
+    $self->Threaded(0);
+  }
+  else
+  {
+    Debug('threading enabled');
+    my $pool = Thread::Pool->new(
+                                  {
+                                    'workers' => $self->WorkerThreads,
+                                    'do'      => sub { $self->DispatchRequest(@_) },
+                                  }
+                                );
+    $self->ThreadPool($pool);    
+    $self->PoolJobs({});
+  }
+}
 
 =item FindMethod($method_name)
 
