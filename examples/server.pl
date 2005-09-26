@@ -8,10 +8,13 @@ use Error;
 
 use BadPackage;
 
+my $threaded = $ARGV[0] eq '-t';
+
 my $server = TestServer->new(
   {
     Transport  => RPC::Lite::Transport::TCP->new( { ListenPort => 10000 } ),
-    Serializer => RPC::Lite::Serializer::JSON->new(), 
+    Serializer => RPC::Lite::Serializer::JSON->new(),
+    Threaded   => $threaded,
   }
 );
 
@@ -112,4 +115,16 @@ sub BadNestedData
 sub GetUndef
 {
   return undef;
+}
+
+sub SlowMethod
+{
+  sleep 10;
+  return 'slow';
+}
+
+sub FastMethod
+{
+  sleep 1;
+  return 'fast';
 }

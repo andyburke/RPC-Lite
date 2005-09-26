@@ -4,7 +4,6 @@ use strict;
 use IO::Socket;
 use IO::Select;
 
-our $VERSION = "0.0.1";
 
 sub Personality { $_[0]->{personality} = $_[1] if @_ > 1; $_[0]->{personality} }
 
@@ -19,7 +18,6 @@ sub ClientSelect { $_[0]->{clientselect} = $_[1] if @_ > 1; $_[0]->{clientselect
 sub LocalAddr     { $_[0]->{localaddr}     = $_[1] if @_ > 1; $_[0]->{localaddr} }
 sub ListenPort    { $_[0]->{listenport}    = $_[1] if @_ > 1; $_[0]->{listenport} }
 sub ListenSocket  { $_[0]->{listensocket}  = $_[1] if @_ > 1; $_[0]->{listensocket} }
-sub CurrentSocket { $_[0]->{currentsocket} = $_[1] if @_ > 1; $_[0]->{currentsocket} }
 sub IsListening   { $_[0]->{islistening}   = $_[1] if @_ > 1; $_[0]->{islistening} }
 sub ServerSelect  { $_[0]->{serverselect}  = $_[1] if @_ > 1; $_[0]->{serverselect} }
 
@@ -154,22 +152,31 @@ sub IsServer
   return ( !defined( $self->Personality ) or $self->Personality eq 'Server' );
 }
 
-sub ReadRequestContent
+# service the socket, returning next ready client or handle new incoming connection
+sub GetNextRequestingClient
 {
   my $self = shift;
 
   return undef if !$self->IsServer;
 
-  $self->Listen;
-  my ($socket) = $self->ServerSelect->can_read(.1);
+  $self->Listen; # make sure our listen socket is established
+  my ($socket) = $self->ServerSelect->can_read(.1); # try to find any ready clients
   return undef if !$socket;
 
-  if ( $socket == $self->ListenSocket )
+  if ( $socket == $self->ListenSocket ) # new connection
   {
     $socket = $socket->accept;
-    $self->ServerSelect->add($socket);
+    $self->ServerSelect->add($socket); # add connection to our select list for service
     return undef;
   }
+
+  return $socket;
+}
+
+sub ReadRequestContent
+{
+  my $self = shift;
+  my $socket = shift; # effective client id 
 
   my $content = '';
   my $count   = 0;
@@ -186,7 +193,6 @@ sub ReadRequestContent
       return undef;
     }
   }
-  $self->CurrentSocket($socket);
 
   chop($content);    # eat off termination character
   return $content;
@@ -194,18 +200,15 @@ sub ReadRequestContent
 
 sub WriteResponseContent
 {
-  my ( $self, $content ) = @_;
+  my ( $self, $socket, $content ) = @_;
 
   return undef if !$self->IsServer;
 
-  defined( $self->CurrentSocket ) or die("CurrentSocket not defined!");
-
   $content .= chr(0);
-  my $success = ( $self->CurrentSocket->syswrite($content) == length($content) );
+  my $success = ( $socket->syswrite($content) == length($content) );
 
   # disconnect on failure
-  $self->ServerSelect->remove( $self->CurrentSocket ) if !$success;
-  $self->CurrentSocket(undef);
+  $self->ServerSelect->remove( $socket ) if !$success;
 
   return $success;
 }

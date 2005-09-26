@@ -2,7 +2,7 @@ package RPC::Lite;
 
 # documentation/placeholder package
 
-our $VERSION = '0.0.5';
+our $VERSION = '0.0.6';
 
 use RPC::Lite::Client;
 use RPC::Lite::Server;

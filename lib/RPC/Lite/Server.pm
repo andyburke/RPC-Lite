@@ -9,7 +9,10 @@ use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Error;
 
-my $systemPrefix = 'system';
+my $DEBUG = $ENV{RPC_LITE_DEBUG};
+
+my $systemPrefix         = 'system';
+my $workerThreadsDefault = 10;
 
 =pod
 
@@ -56,37 +59,62 @@ my %defaultMethods = (
 
 sub Serializer             { $_[0]->{serializer}             = $_[1] if @_ > 1; $_[0]->{serializer} }
 sub Transport              { $_[0]->{transport}              = $_[1] if @_ > 1; $_[0]->{transport} }
-sub ImplementationPackages { $_[0]->{implementationpackages} = $_[1] if @_ > 1; $_[0]->{implementationpackages} }
 sub StartTime              { $_[0]->{starttime}              = $_[1] if @_ > 1; $_[0]->{starttime} }
-sub RequestCount           { $_[0]->{requestcount}           = $_[1] if @_ > 1; $_[0]->{requestcount} }
-sub SystemRequestCount     { $_[0]->{systemrequestcount}     = $_[1] if @_ > 1; $_[0]->{systemrequestcount} }
 sub Threaded               { $_[0]->{threaded}               = $_[1] if @_ > 1; $_[0]->{threaded} }
 sub ThreadPool             { $_[0]->{threadpool}             = $_[1] if @_ > 1; $_[0]->{threadpool} }
 sub WorkerThreads          { $_[0]->{workerthreads}          = $_[1] if @_ > 1; $_[0]->{workerthreads} }
+sub PoolJobs               { $_[0]->{pooljobs}          = $_[1] if @_ > 1; $_[0]->{pooljobs} }
+sub RequestCount
+{
+  lock($_[0]->{requestcount});
+  $_[0]->{requestcount} = $_[1] if @_ > 1;
+  return $_[0]->{requestcount}
+}
+sub SystemRequestCount
+{
+  lock($_[0]->{systemrequestcount});
+  $_[0]->{systemrequestcount} = $_[1] if @_ > 1;
+  return $_[0]->{systemrequestcount}
+}
+
+sub IncRequestCount        { $_[0]->IncrementSharedField('requestcount') }
+sub IncSystemRequestCount  { $_[0]->IncrementSharedField('systemrequestcount') }
+
+# helper for atomic counters
+sub IncrementSharedField
+{
+  my $self = shift;
+  my $fieldName = shift;
+  
+  lock($self->{$fieldName});
+  return ++$self->{$fieldName};
+}
+
 
 sub new
 {
   my $class = shift;
   my $args  = shift;
 
-  my $self = {};
+  my $self = { requestcount => undef, systemrequestcount => undef};
   bless $self, $class;
+  share($self->{requestcount});
+  share($self->{systemrequestcount});
 
-  $self->StartTime( time() );
+
+  $self->StartTime( time() ); # no need to share; set once and copied to children
   $self->RequestCount(0);
   $self->SystemRequestCount(0);
-
-  $self->ImplementationPackages( $args->{ImplementationPackages} or [$class] );    # default MO is to subclass a Server implementation subclass
 
   $self->Serializer( $args->{Serializer} ) or die('A serializer is required!');
   $self->Transport( $args->{Transport} )   or die('A transport is required!');
 
   $self->Threaded( $args->{Threaded} );
-  $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : 5 );
+  $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
 
   if ( $self->Threaded )
   {
-    eval { use Thread::Pool; };
+    eval "use Thread::Pool";
     if ($@)
     {
       warn "Disabling threading for lack of Thread::Pool module.";
@@ -94,13 +122,15 @@ sub new
     }
     else
     {
+      Debug('threading enabled');
       my $pool = Thread::Pool->new(
                                     {
                                       'workers' => $self->WorkerThreads,
-                                      'do'      => 'DispatchRequest',
+                                      'do'      => sub { $self->DispatchRequest(@_) },
                                     }
                                   );
       $self->ThreadPool($pool);    
+      $self->PoolJobs({});
     }
   }
 
@@ -111,34 +141,6 @@ sub new
 
 ############
 # These are public methods that server authors may call.
-
-=item AddPackage($packageName)
-
-Adds the package specified by C<$packageName> to our implemenations.
-
-=cut
-
-sub AddPackage
-{
-  my $self        = shift;
-  my $packageName = shift;
-
-  push( @{ $self->ImplementationPackages }, $packageName );
-}
-
-=item RemovePackage($packageName)
-
-Removes the package specified by C<$packageName> from our implemenations.
-
-=cut
-
-sub RemovePackage
-{
-  my $self        = shift;
-  my $packageName = shift;
-
-  @{ $self->ImplementationPackages } = grep { $_ ne $packageName } @{ $self->ImplementationPackages };
-}
 
 =item Loop
 
@@ -155,6 +157,7 @@ sub Loop
   while (1)
   {
     $self->HandleRequest;
+    $self->HandleResponses;
   }
 }
 
@@ -168,15 +171,48 @@ sub HandleRequest
 {
   my $self = shift;
 
-  my $requestContent = $self->Transport->ReadRequestContent;
+  my $clientId = $self->Transport->GetNextRequestingClient;
+  return if !defined($clientId);
+  
+  my $requestContent = $self->Transport->ReadRequestContent($clientId);
   return if !defined $requestContent;
+  
   my $request  = $self->Serializer->Deserialize($requestContent);
-  my $response = $self->DispatchRequest($request);
 
-  # only send a response for requests, not for notifications
-  if ( !$request->isa('RPC::Lite::Notification') )
+  if($self->Threaded) # asynchronous operation
   {
-    $self->Transport->WriteResponseContent( $self->Serializer->Serialize($response) );
+    my $jobId = $self->ThreadPool->job($request);
+    $self->PoolJobs->{$jobId} = $clientId; # store the client id for when job completes
+    Debug("passing request to thread pool; jobid:$jobId");
+  }
+  else # synchronous
+  {
+    my $response = $self->DispatchRequest($request);
+  
+    # only send a response for requests, not for notifications
+    if ( !$request->isa('RPC::Lite::Notification') )
+    {
+      $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize($response) );
+    }
+  }
+}
+
+# pump the thread pool and write out responses to clients
+sub HandleResponses
+{
+  my $self = shift;
+
+  return if !$self->Threaded;
+  
+  my @readyJobs = $self->ThreadPool->results();
+  Debug("jobs finished: " . scalar(@readyJobs)) if @readyJobs;
+  foreach my $jobId (@readyJobs)
+  {
+    my $response = $self->ThreadPool->result($jobId);
+    my $clientId = $self->PoolJobs->{$jobId};
+    $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize($response) );
+    delete $self->PoolJobs->{$jobId};
+    Debug("  id:$jobId");
   }
 }
 
@@ -197,21 +233,10 @@ sub FindMethod
 {
   my ( $self, $methodName ) = @_;
 
-  foreach my $implementation ( @{ $self->ImplementationPackages } )
-  {
-    if ( $implementation->can($methodName) )
-    {
-      no strict 'refs';
-      return *{ $implementation . "::$methodName" };
-    }
-  }
+  Debug("looking for method in: " . ref($self));
+  my $coderef = $self->can($methodName) || $defaultMethods{$methodName};
 
-  if ( my $coderef = $defaultMethods{$methodName} )
-  {
-    return $coderef;
-  }
-
-  return undef;
+  return $coderef;
 }
 
 =item DispatchRequest($request)
@@ -244,7 +269,9 @@ sub DispatchRequest
   {
 
     # implementation package has the method, so we call it with the params
+    Debug("dispatching to: " . $request->Method);
     eval { $response = $method->( $self, @{ $request->Params } ) };    # may return a pre-encoded Response, or just some data
+    Debug("  returned");
     if ($@)
     {
 
@@ -279,6 +306,19 @@ sub DispatchRequest
   $response->Id( $request->Id );    # make sure the response's id matches the request's id
 
   return $response;
+}
+
+
+#=============
+
+sub Debug
+{
+  return if !$DEBUG;
+
+  my $message = shift;
+  my ($package, $filename, $line, $subroutine) = caller(1);
+  my $threadId = threads->tid;
+  print STDERR "[$threadId] $subroutine: $message\n";
 }
 
 #=============
