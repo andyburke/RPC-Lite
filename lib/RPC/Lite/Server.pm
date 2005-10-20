@@ -63,7 +63,6 @@ sub StartTime              { $_[0]->{starttime}              = $_[1] if @_ > 1; 
 sub Threaded               { $_[0]->{threaded}               = $_[1] if @_ > 1; $_[0]->{threaded} }
 sub ThreadPool             { $_[0]->{threadpool}             = $_[1] if @_ > 1; $_[0]->{threadpool} }
 sub WorkerThreads          { $_[0]->{workerthreads}          = $_[1] if @_ > 1; $_[0]->{workerthreads} }
-sub PoolJobs               { $_[0]->{pooljobs}          = $_[1] if @_ > 1; $_[0]->{pooljobs} }
 sub RequestCount
 {
   lock($_[0]->{requestcount});
@@ -161,19 +160,12 @@ sub HandleRequest
 
   if($self->Threaded) # asynchronous operation
   {
-    my $jobId = $self->ThreadPool->job($request);
-    $self->PoolJobs->{$jobId} = $clientId; # store the client id for when job completes
-    Debug("passing request to thread pool; jobid:$jobId");
+    Debug("passing request to thread pool");
+    $self->ThreadPool->job($clientId, $request);
   }
   else # synchronous
   {
-    my $response = $self->DispatchRequest($request);
-  
-    # only send a response for requests, not for notifications
-    if ( !$request->isa('RPC::Lite::Notification') )
-    {
-      $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize($response) );
-    }
+    $self->DispatchRequest($clientId, $request);
   }
 }
 
@@ -224,7 +216,6 @@ sub InitializeThreadPool
                                   }
                                 );
     $self->ThreadPool($pool);    
-    $self->PoolJobs({});
   }
 }
 
@@ -255,7 +246,7 @@ return value from the method.
 
 sub DispatchRequest
 {
-  my ( $self, $request ) = @_;
+  my ( $self, $clientId, $request ) = @_;
 
   ###########################################################
   ## keep track of how many method calls we've handled...
@@ -311,7 +302,13 @@ sub DispatchRequest
 
   $response->Id( $request->Id );    # make sure the response's id matches the request's id
 
-  return $response;
+  # only send a response for requests, not for notifications
+  if ( !$request->isa('RPC::Lite::Notification') )
+  {
+    $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize($response) );
+  }
+
+  return 1;
 }
 
 

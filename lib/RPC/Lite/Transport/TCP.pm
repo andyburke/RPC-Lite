@@ -1,9 +1,12 @@
 package RPC::Lite::Transport::TCP;
 
 use strict;
+
+use threads;
+use threads::shared;
+
 use IO::Socket;
 use IO::Select;
-
 
 sub Personality { $_[0]->{personality} = $_[1] if @_ > 1; $_[0]->{personality} }
 
@@ -15,11 +18,13 @@ sub Timeout      { $_[0]->{timeout}      = $_[1] if @_ > 1; $_[0]->{timeout} }
 sub ClientSelect { $_[0]->{clientselect} = $_[1] if @_ > 1; $_[0]->{clientselect} }
 
 # Server variables
-sub LocalAddr     { $_[0]->{localaddr}     = $_[1] if @_ > 1; $_[0]->{localaddr} }
-sub ListenPort    { $_[0]->{listenport}    = $_[1] if @_ > 1; $_[0]->{listenport} }
-sub ListenSocket  { $_[0]->{listensocket}  = $_[1] if @_ > 1; $_[0]->{listensocket} }
-sub IsListening   { $_[0]->{islistening}   = $_[1] if @_ > 1; $_[0]->{islistening} }
-sub ServerSelect  { $_[0]->{serverselect}  = $_[1] if @_ > 1; $_[0]->{serverselect} }
+sub LocalAddr           { $_[0]->{localaddr}           = $_[1] if @_ > 1; $_[0]->{localaddr} }
+sub ListenPort          { $_[0]->{listenport}          = $_[1] if @_ > 1; $_[0]->{listenport} }
+sub ListenSocket        { $_[0]->{listensocket}        = $_[1] if @_ > 1; $_[0]->{listensocket} }
+sub IsListening         { $_[0]->{islistening}         = $_[1] if @_ > 1; $_[0]->{islistening} }
+sub ServerSelect        { $_[0]->{serverselect}        = $_[1] if @_ > 1; $_[0]->{serverselect} }
+sub ClientIdMap         { $_[0]->{clientidmap}         = $_[1] if @_ > 1; $_[0]->{clientidmap} }
+sub DisconnectedClients { $_[0]->{disconnectedclients} = $_[1] if @_ > 1; $_[0]->{disconnectedclients} }    
 
 sub new
 {
@@ -35,7 +40,7 @@ sub new
   {
     $self->Host( $args->{Host} );
     $self->Port( $args->{Port} );
-    $self->Timeout( $args->{Timeout} ); # defaults to undef, ie. infinite blocking
+    $self->Timeout( $args->{Timeout} );    # defaults to undef, ie. infinite blocking
     $self->ClientSelect( IO::Select->new );
   }
 
@@ -44,6 +49,9 @@ sub new
     $self->ListenPort( $args->{ListenPort} );
     $self->LocalAddr( $args->{LocalAddr} );
     $self->ServerSelect( IO::Select->new );
+    $self->ClientIdMap(         {} );
+    $self->DisconnectedClients( {} );
+    share( $self->{disconnectedclients} );
   }
 
   return $self;
@@ -61,7 +69,7 @@ sub IsClient
 sub ReadResponseContent
 {
   my $self    = shift;
-  my $timeout = @_ ? shift : $self->Timeout; # defaults to undef if not set by user (see new())
+  my $timeout = @_ ? shift: $self->Timeout;    # defaults to undef if not set by user (see new())
 
   return undef if !$self->IsClient;
   return undef if !$self->IsConnected;
@@ -70,17 +78,17 @@ sub ReadResponseContent
   my $count   = 0;
 
   # FIXME comment this
-  
+
   my ($socket) = $self->ClientSelect->can_read($timeout);
 
-  if($socket)
+  if ($socket)
   {
     while ( substr( $content, $count - 1, 1 ) ne chr(0) )
     {
       $count += $socket->sysread( $content, 1024, $count );
       return undef if $!;
     }
-  
+
     chop($content);    # remove termination character
     return $content;
   }
@@ -96,6 +104,7 @@ sub WriteRequestContent
   $self->Connect or return undef;
   $content .= chr(0);
   my ($socket) = $self->ClientSelect->handles;
+
   # FIXME need to check if $socket is kosher?
   $socket->syswrite($content) == length($content) or return undef;
 
@@ -116,7 +125,7 @@ sub Connect
                                       PeerAddr => $self->Host,
                                       PeerPort => $self->Port,
                                       Blocking => 1,
-                                     );    
+                                    );
   if ($socket)
   {
     $self->ClientSelect->add($socket);
@@ -124,7 +133,7 @@ sub Connect
   }
   else
   {
-    die($!); # FIXME this solution is a little extreme
+    die($!);    # FIXME this solution is a little extreme
   }
 
   return $self->IsConnected;
@@ -137,7 +146,7 @@ sub Disconnect
   return undef if !$self->IsClient;
 
   $self->IsConnected(0);
-  $self->ClientSelect->($self->ClientSelect->handles);
+  $self->ClientSelect->( $self->ClientSelect->handles );
 }
 
 ## End Client Personality
@@ -159,27 +168,50 @@ sub GetNextRequestingClient
 
   return undef if !$self->IsServer;
 
-  $self->Listen; # make sure our listen socket is established
-  my ($socket) = $self->ServerSelect->can_read(.1); # try to find any ready clients
-  return undef if !$socket;
+  $self->Listen;    # make sure our listen socket is established
 
-  if ( $socket == $self->ListenSocket ) # new connection
+  # reap disconnected clients
   {
-    $socket = $socket->accept;
-    $self->ServerSelect->add($socket); # add connection to our select list for service
-    return undef;
+    lock($self->{disconnectedclients});
+    foreach my $clientId (keys %{$self->DisconnectedClients})
+    {
+      my $socket = IO::Socket::INET->new_from_fd( $clientId, 'r+' );
+      delete $self->DisconnectedClients->{$clientId};
+      delete $self->ClientIdMap->{$clientId};
+      $socket or next;
+      $self->ServerSelect->remove($socket);
+    }
   }
 
-  return $socket;
+  my ($socket) = $self->ServerSelect->can_read(.01);    # try to find any ready clients
+  return undef if !$socket;
+
+  my $clientId = fileno($socket);
+
+  if ( $socket == $self->ListenSocket )                 # new connection
+  {
+    $socket = $socket->accept;
+    $self->ServerSelect->add($socket);                  # add connection to our select list for service
+
+    $self->ClientIdMap->{$clientId} = $socket;          # keep a reference so that the socket is not GC'd
+                                                        # FIXME need to worry about cleaning this list up eventually?
+
+    $clientId = undef;                                  # don't really have a request from this client yet
+  }
+
+  return $clientId;
 }
 
 sub ReadRequestContent
 {
-  my $self = shift;
-  my $socket = shift; # effective client id 
+  my $self   = shift;
+  my $clientId = shift;                                   # effective client id
 
   my $content = '';
   my $count   = 0;
+
+  my $socket = IO::Socket::INET->new_from_fd( $clientId, 'r+' );
+  return undef if !$socket;
 
   # FIXME comment this
   # FIXME allow for a user-set timeout
@@ -189,7 +221,8 @@ sub ReadRequestContent
     $count += $readBytes;
     if ( $! or !$readBytes )
     {
-      $self->ServerSelect->remove($socket);
+      lock($self->{disconnectedclients});
+      $self->DisconnectedClients->{$clientId} = 1;
       return undef;
     }
   }
@@ -200,15 +233,24 @@ sub ReadRequestContent
 
 sub WriteResponseContent
 {
-  my ( $self, $socket, $content ) = @_;
+  my ( $self, $clientId, $content ) = @_;
 
   return undef if !$self->IsServer;
 
+  my $success = 0;
+  my $socket = IO::Socket::INET->new_from_fd( $clientId, 'r+' );
+  return $success if !$socket;
+
   $content .= chr(0);
-  my $success = ( $socket->syswrite($content) == length($content) );
+  $success = ( $socket->syswrite($content) == length($content) );
 
   # disconnect on failure
-  $self->ServerSelect->remove( $socket ) if !$success;
+  if ( !$success )
+  {
+    lock($self->{disconnectedclients});
+    $self->DisconnectedClients->{$clientId} = 1;
+    return $success;
+  }
 
   return $success;
 }

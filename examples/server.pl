@@ -15,6 +15,7 @@ my $server = TestServer->new(
     Transport  => RPC::Lite::Transport::TCP->new( { ListenPort => 10000 } ),
     Serializer => RPC::Lite::Serializer::JSON->new(),
     Threaded   => $threaded,
+    Threaded   => 1,
   }
 );
 
