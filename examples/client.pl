@@ -4,6 +4,7 @@ use strict;
 use RPC::Lite::Client;
 use RPC::Lite::Transport::TCP;
 use RPC::Lite::Serializer::JSON;
+use RPC::Lite::Serializer::XML;
 
 use Data::Dumper;
 
@@ -12,7 +13,7 @@ use BadPackage;
 my $client = RPC::Lite::Client->new(
                                      {
                                        Transport  => RPC::Lite::Transport::TCP->new( { Host => 'localhost', Port => 10000 } ),
-                                       Serializer => RPC::Lite::Serializer::JSON->new(),
+                                       Serializer => RPC::Lite::Serializer::XML->new(),
                                      }
                                    );    
 

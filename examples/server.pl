@@ -3,6 +3,7 @@ use strict;
 use RPC::Lite::Server;
 use RPC::Lite::Transport::TCP;
 use RPC::Lite::Serializer::JSON;
+use RPC::Lite::Serializer::XML;
 
 use Error;
 
@@ -13,7 +14,7 @@ my $threaded = $ARGV[0] eq '-t';
 my $server = TestServer->new(
   {
     Transport  => RPC::Lite::Transport::TCP->new( { ListenPort => 10000 } ),
-    Serializer => RPC::Lite::Serializer::JSON->new(),
+    Serializer => RPC::Lite::Serializer::XML->new(),
     Threaded   => $threaded,
     Threaded   => 1,
   }
