@@ -8,6 +8,7 @@ use threads::shared;
 use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Error;
+use RPC::Lite::Signature;
 
 my $DEBUG = $ENV{RPC_LITE_DEBUG};
 
@@ -52,9 +53,11 @@ handling.
 =cut
 
 my %defaultMethods = (
-                       "$systemPrefix.Uptime"             => \&RpcUptime,
-                       "$systemPrefix.RequestCount"       => \&RpcRequestCount,
-                       "$systemPrefix.SystemRequestCount" => \&RpcSystemRequestCount,
+                       "$systemPrefix.Uptime"             => \&_Uptime,
+                       "$systemPrefix.RequestCount"       => \&_RequestCount,
+                       "$systemPrefix.SystemRequestCount" => \&_SystemRequestCount,
+                       "$systemPrefix.GetSignatures"      => \&_GetSignatures,
+                       "$systemPrefix.GetSignature"       => \&_GetSignature, 
                      );
 
 sub Serializer             { $_[0]->{serializer}             = $_[1] if @_ > 1; $_[0]->{serializer} }
@@ -63,6 +66,7 @@ sub StartTime              { $_[0]->{starttime}              = $_[1] if @_ > 1; 
 sub Threaded               { $_[0]->{threaded}               = $_[1] if @_ > 1; $_[0]->{threaded} }
 sub ThreadPool             { $_[0]->{threadpool}             = $_[1] if @_ > 1; $_[0]->{threadpool} }
 sub WorkerThreads          { $_[0]->{workerthreads}          = $_[1] if @_ > 1; $_[0]->{workerthreads} }
+sub Signatures             { $_[0]->{signatures}             = $_[1] if @_ > 1; $_[0]->{signatures} }
 sub RequestCount
 {
   lock($_[0]->{requestcount});
@@ -111,7 +115,9 @@ sub new
   $self->Threaded( $args->{Threaded} );
   $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
 
-   $self->Initialize($args) if ( $self->can('Initialize') );
+  $self->Signatures({});
+
+  $self->Initialize($args) if ( $self->can('Initialize') );
 
   return $self;
 }
@@ -311,6 +317,23 @@ sub DispatchRequest
   return 1;
 }
 
+#=============
+
+sub AddSignature
+{
+  my $self = shift;
+  my $signatureString = shift;
+
+  my $signature = RPC::Lite::Signature->new($signatureString);
+
+  if(!$self->can($signature->MethodName()))
+  {
+    warn("Attempted to add a signature for a method [" . $signature->MethodName . "] we are not capable of!");
+    return;
+  }
+
+  $self->Signatures->{$signature->MethodName} = $signature;
+}
 
 #=============
 
@@ -326,25 +349,49 @@ sub Debug
 
 #=============
 
-sub RpcUptime
+sub _Uptime
 {
   my $self = shift;
 
   return time() - $self->StartTime;
 }
 
-sub RpcRequestCount
+sub _RequestCount
 {
   my $self = shift;
 
   return $self->RequestCount;
 }
 
-sub RpcSystemRequestCount
+sub _SystemRequestCount
 {
   my $self = shift;
 
   return $self->SystemRequestCount;
+}
+
+sub _GetSignatures
+{
+  my $self = shift;
+
+  my @signatures;
+
+  foreach my $methodName (keys(%{$self->Signatures}))
+  {
+    my $signature = $self->Signatures->{$methodName};
+
+    push(@signatures, $signature->AsString());
+  }
+
+  return \@signatures;
+}
+
+sub _GetSignature
+{
+  my $self = shift;
+  my $methodName = shift;
+
+  return $self->Signatures->{$methodName}->AsString();
 }
 
 1;

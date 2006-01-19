@@ -28,6 +28,16 @@ package TestServer;
 use base qw(RPC::Lite::Server);
 use Data::Dumper;
 
+sub Initialize
+{
+  my $self = shift;
+
+  $self->AddSignature('add=int:int,int');
+  $self->AddSignature('MergeHashes = struct : array(struct)');
+  $self->AddSignature('MergeArrays = array : array, array');
+
+}
+
 sub add
 {
   my ( $server, $value1, $value2 ) = @_;

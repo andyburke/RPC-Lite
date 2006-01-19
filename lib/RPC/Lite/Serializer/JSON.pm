@@ -8,7 +8,6 @@ use RPC::Lite::Notification;
 use RPC::Lite::Error;
 
 use JSON;
-use Data::Structure::Util qw(unbless get_blessed);
 
 use Data::Dumper;
 
@@ -84,11 +83,10 @@ sub Serialize
   }
   else # try our best
   {
-    # unbless w/ Data::Structure::Util?
+    # JSON should unbless this for us...
   }
 
-#  $object = $self->SanitizeData($object);
-  my $data = objToJson($object);
+  my $data = objToJson( $object, { convblessed => 1 } );
 
   $self->_Debug('Serializing', Dumper($object), $data) if($DEBUG);
 
@@ -102,7 +100,7 @@ sub Deserialize
 
   length($data) or return undef;
   
-  my $object = jsonToObj($data);
+  my $object = jsonToObj( $data, { convblessed => 1 } );
   $self->HandleJSONsNotStringCrap(\$object);
 
   my $result = $object;
@@ -163,55 +161,6 @@ sub HandleJSONsNotStringCrap
     $$ref = $$ref->{value};
   }
 }
-
-=pod
-
-sub SanitizeData
-{
-  my $self = shift;
-  my $data = shift;
-
-  print "Unsanitized Data:\n\n  ", Dumper($data), "\n\n" if $DEBUG;
-
-  my $blessedThings = get_blessed($data);
-  foreach my $blessedThing (@$blessedThings)
-  {
-    warn("Blessed type [" . ref($blessedThing) . "]");
-  }
-
-  #unbless($data);
-
-  # using refs can break things, like Class::DBI
-
-  my $type = ref($$dataRef);
-
-  if(length($type) && !($type eq 'HASH' or $type eq 'ARRAY'))
-  {
-    my $newType = undef;
-    warn("WARNING: unblessing: [$type]");
-    bless $$dataRef, $newType;
-    $self->SanitizeData($dataRef); # now we can try to re-sanitize it as a hash
-  }
-  elsif($type eq 'ARRAY')
-  {
-    foreach my $element (@{$$dataRef})
-    {
-      $self->SanitizeData(\$element);
-    }
-  }
-  elsif($type eq 'HASH')
-  {
-    foreach my $key (keys %{$$dataRef})
-    {
-      $self->SanitizeData(\$$dataRef->{$key});
-    }
-  }
-
-  print "Sanitized Data:\n\n  ", Dumper($data), "\n\n" if $DEBUG;
-
-  return $data;
-}
-=cut
 
 sub _Debug
 {

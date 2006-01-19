@@ -16,6 +16,12 @@ my $client = RPC::Lite::Client->new(
                                      }
                                    );    
 
+print "GetSingatures: \n  " . Dumper($client->Request('system.GetSignatures')) . "\n\n";
+
+print "GetSignature(add):\n  " . Dumper($client->Request('system.GetSignature', 'add')) . "\n\n";
+
+print "GetSignature(MergeHashes):\n  " . Dumper($client->Request('system.GetSignature', 'MergeHashes')) . "\n\n";
+
 my $val1   = 1;
 my $val2   = 2;
 my $result = $client->Request( 'add', $val1, $val2 );
