@@ -25,16 +25,15 @@ RPC::Lite::Server - Lightweight RPC server framework.
 
   use RPC::Lite::Server;
   use RPC::Lite::Transport::TCP;
-  use RPC::Lite::Serializer::JSON;
 
   my $server = RPC::Lite::Server->new(
     {
-      Transport  => RPC::Lite::Transport::TCP->new(
+      Transport   => RPC::Lite::Transport::TCP->new(
         {
           ListenPort => 10000
         }
       ),
-      Serializer => RPC::Lite::Serializer::JSON->new(),
+      Serializers => ['JSON', 'XML'],
     }
   );
 
@@ -60,7 +59,7 @@ my %defaultMethods = (
                        "$systemPrefix.GetSignature"       => \&_GetSignature, 
                      );
 
-sub Serializer             { $_[0]->{serializer}             = $_[1] if @_ > 1; $_[0]->{serializer} }
+sub Serializers            { $_[0]->{serializers}            = $_[1] if @_ > 1; $_[0]->{serializers} }
 sub Transport              { $_[0]->{transport}              = $_[1] if @_ > 1; $_[0]->{transport} }
 sub StartTime              { $_[0]->{starttime}              = $_[1] if @_ > 1; $_[0]->{starttime} }
 sub Threaded               { $_[0]->{threaded}               = $_[1] if @_ > 1; $_[0]->{threaded} }
@@ -109,7 +108,7 @@ sub new
   $self->RequestCount(0);
   $self->SystemRequestCount(0);
 
-  $self->Serializer( $args->{Serializer} ) or die('A serializer is required!');
+  $self->__InitializeSerializers( $args->{Serializers} );
   $self->Transport( $args->{Transport} )   or die('A transport is required!');
 
   $self->Threaded( $args->{Threaded} );
@@ -120,6 +119,39 @@ sub new
   $self->Initialize($args) if ( $self->can('Initialize') );
 
   return $self;
+}
+
+sub __InitializeSerializers
+{
+  my $self = shift;
+  my $serializers = shift;
+
+  $self->Serializers([]);
+
+  if(!ref($serializers))
+  {
+    #default
+  }
+  elsif(ref($serializers) eq 'ARRAY')
+  {
+    foreach my $serializerType (@{$serializers})
+    {
+      my $serializerClass = "RPC::Lite::Serializer::$serializerType";
+
+      eval "use $serializerClass";
+      if($@)
+      {
+        warn("Could not load serializer of type [$serializerType]");
+        next;
+      }
+
+      push(@{$self->Serializers}, $serializerClass->new());
+    }
+  }
+  else
+  {
+    die("No serializers specified!");
+  }
 }
 
 ############
@@ -162,7 +194,9 @@ sub HandleRequest
   my $requestContent = $self->Transport->ReadRequestContent($clientId);
   return if !defined $requestContent;
   
-  my $request  = $self->Serializer->Deserialize($requestContent);
+  my $request;
+
+    = $self->Serializer->Deserialize($requestContent);
 
   if($self->Threaded) # asynchronous operation
   {
