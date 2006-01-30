@@ -5,6 +5,9 @@ use strict;
 use threads;
 use threads::shared;
 
+use RPC::Lite::Session;
+use RPC::Lite::SessionManager;
+
 use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Error;
@@ -14,6 +17,8 @@ my $DEBUG = $ENV{RPC_LITE_DEBUG};
 
 my $systemPrefix         = 'system';
 my $workerThreadsDefault = 10;
+
+my @defaultSerializers = qw( JSON XML Null );
 
 =pod
 
@@ -28,11 +33,7 @@ RPC::Lite::Server - Lightweight RPC server framework.
 
   my $server = RPC::Lite::Server->new(
     {
-      Transport   => RPC::Lite::Transport::TCP->new(
-        {
-          ListenPort => 10000
-        }
-      ),
+      Transport   => 'TCP;ListenPort=10000,OtherOption=value',
       Serializers => ['JSON', 'XML'],
     }
   );
@@ -60,7 +61,7 @@ my %defaultMethods = (
                      );
 
 sub Serializers            { $_[0]->{serializers}            = $_[1] if @_ > 1; $_[0]->{serializers} }
-sub Transport              { $_[0]->{transport}              = $_[1] if @_ > 1; $_[0]->{transport} }
+sub SessionManager         { $_[0]->{sessionmanager}         = $_[1] if @_ > 1; $_[0]->{sessionmanager} }
 sub StartTime              { $_[0]->{starttime}              = $_[1] if @_ > 1; $_[0]->{starttime} }
 sub Threaded               { $_[0]->{threaded}               = $_[1] if @_ > 1; $_[0]->{threaded} }
 sub ThreadPool             { $_[0]->{threadpool}             = $_[1] if @_ > 1; $_[0]->{threadpool} }
@@ -103,13 +104,12 @@ sub new
   share($self->{requestcount});
   share($self->{systemrequestcount});
 
-
   $self->StartTime( time() ); # no need to share; set once and copied to children
   $self->RequestCount(0);
   $self->SystemRequestCount(0);
 
   $self->__InitializeSerializers( $args->{Serializers} );
-  $self->Transport( $args->{Transport} )   or die('A transport is required!');
+  $self->__InitializeSessionManager( $args->{Transport} );
 
   $self->Threaded( $args->{Threaded} );
   $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
@@ -128,30 +128,52 @@ sub __InitializeSerializers
 
   $self->Serializers([]);
 
-  if(!ref($serializers))
+  # default
+  if(ref($serializers) ne 'ARRAY')
   {
-    #default
+    $serializers = \@defaultSerializers;
   }
-  elsif(ref($serializers) eq 'ARRAY')
+
+  foreach my $serializerType (@{$serializers})
   {
-    foreach my $serializerType (@{$serializers})
+    my $serializerClass = "RPC::Lite::Serializer::$serializerType";
+
+    eval "use $serializerClass";
+    if($@)
     {
-      my $serializerClass = "RPC::Lite::Serializer::$serializerType";
-
-      eval "use $serializerClass";
-      if($@)
-      {
-        warn("Could not load serializer of type [$serializerType]");
-        next;
-      }
-
-      push(@{$self->Serializers}, $serializerClass->new());
+      warn("Could not load serializer of type [$serializerType]");
+      next;
     }
+
+    push(@{$self->Serializers}, $serializerClass->new());
   }
-  else
+}
+
+sub __InitializeSessionManager
+{
+  my $self = shift;
+  my $transportSpec = shift;
+
+  my ($transportType, $transportArgString) = $transportSpec =~ /^(.*?);(.*)$/;
+  my @transportArgList = split(/,/, $transportArgString);
+
+  my %transportArgs;
+  foreach my $transportArg (@transportArgList)
   {
-    die("No serializers specified!");
+    my ($key, $value) = split(/=/, $transportArg, 2);
+    $transportArgs{$key} = $value;
   }
+
+  my $sessionManager = RPC::Lite::SessionManager->new(
+                                                      {
+                                                        TransportType => $transportType,
+                                                        TransportArgs => \%transportArgs,
+                                                      }
+                                                     );
+
+  die("Could not create SessionManager!") if !$sessionManager;
+
+  $self->SessionManager($sessionManager);
 }
 
 ############
@@ -188,24 +210,20 @@ sub HandleRequest
 {
   my $self = shift;
 
-  my $clientId = $self->Transport->GetNextRequestingClient;
-  return if !defined($clientId);
+  my $session = $self->SessionManager->GetNextReadySession();
+  return if !defined($session);
   
-  my $requestContent = $self->Transport->ReadRequestContent($clientId);
-  return if !defined $requestContent;
+  my $request = $session->GetRequest();
+  return if !defined $request;
   
-  my $request;
-
-    = $self->Serializer->Deserialize($requestContent);
-
   if($self->Threaded) # asynchronous operation
   {
     Debug("passing request to thread pool");
-    $self->ThreadPool->job($clientId, $request);
+    $self->ThreadPool->job($session, $request);
   }
   else # synchronous
   {
-    $self->DispatchRequest($clientId, $request);
+    $self->DispatchRequest($session, $request);
   }
 }
 

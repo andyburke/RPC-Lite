@@ -2,6 +2,7 @@ package RPC::Lite::SessionManager;
 
 use strict;
 
+sub Transport        { $_[0]->{transport}         = $_[1] if @_ > 1; $_[0]->{transport} }
 sub Sessions         { $_[0]->{sessions}         = $_[1] if @_ > 1; $_[0]->{sessions} }
 
 sub new
@@ -14,23 +15,31 @@ sub new
 
   $self->Sessions({});
 
+  my $transportClass = 'RPC::Lite::Transport::' . $args->{TransportType};
+
+  eval "use $transportClass";
+  if($@)
+  {
+    die("Could not load transport of type [$serializerClass]");
+  }
+
+  $self->Transport($transportClass->new());
+
   return $self;
 }
 
-sub Add
+sub GetNextReadySession
 {
   my $self = shift;
-  my $sessionId = shift;
-  my $info = shift;
-  
-  $self->Sessions->{$sessionId} = $info;
+
+  my $clientId = $self->Transport->GetNextRequestingClient;
+  return undef if !defined($clientId);
+
+  if(!exists($self->Sessions->{$clientId}))
+  {
+    # FIXME how to determine serializer type?
+    $self->Sessions->{$clientId} = RPC::Lite::Session->new($clientId, $self->Transport, undef, undef); 
+  }
 }
 
-sub Remove
-{
-  my $self = shift;
-  my $sessionId = shift;
-
-  return delete $self->Sessions->{$sessionId};
-}
 1;
