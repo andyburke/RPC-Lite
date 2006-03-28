@@ -57,123 +57,113 @@ my %defaultMethods = (
                        "$systemPrefix.RequestCount"       => \&_RequestCount,
                        "$systemPrefix.SystemRequestCount" => \&_SystemRequestCount,
                        "$systemPrefix.GetSignatures"      => \&_GetSignatures,
-                       "$systemPrefix.GetSignature"       => \&_GetSignature, 
+                       "$systemPrefix.GetSignature"       => \&_GetSignature,
                      );
 
-sub Serializers            { $_[0]->{serializers}            = $_[1] if @_ > 1; $_[0]->{serializers} }
-sub SessionManager         { $_[0]->{sessionmanager}         = $_[1] if @_ > 1; $_[0]->{sessionmanager} }
-sub StartTime              { $_[0]->{starttime}              = $_[1] if @_ > 1; $_[0]->{starttime} }
-sub Threaded               { $_[0]->{threaded}               = $_[1] if @_ > 1; $_[0]->{threaded} }
-sub ThreadPool             { $_[0]->{threadpool}             = $_[1] if @_ > 1; $_[0]->{threadpool} }
-sub WorkerThreads          { $_[0]->{workerthreads}          = $_[1] if @_ > 1; $_[0]->{workerthreads} }
-sub Signatures             { $_[0]->{signatures}             = $_[1] if @_ > 1; $_[0]->{signatures} }
+sub Serializers    { $_[0]->{serializers}    = $_[1] if @_ > 1; $_[0]->{serializers} }
+sub SessionManager { $_[0]->{sessionmanager} = $_[1] if @_ > 1; $_[0]->{sessionmanager} }
+sub StartTime      { $_[0]->{starttime}      = $_[1] if @_ > 1; $_[0]->{starttime} }
+sub Threaded       { $_[0]->{threaded}       = $_[1] if @_ > 1; $_[0]->{threaded} }
+sub ThreadPool     { $_[0]->{threadpool}     = $_[1] if @_ > 1; $_[0]->{threadpool} }
+sub WorkerThreads  { $_[0]->{workerthreads}  = $_[1] if @_ > 1; $_[0]->{workerthreads} }
+sub Signatures     { $_[0]->{signatures}     = $_[1] if @_ > 1; $_[0]->{signatures} }
+
 sub RequestCount
 {
-  lock($_[0]->{requestcount});
+  lock( $_[0]->{requestcount} );
   $_[0]->{requestcount} = $_[1] if @_ > 1;
-  return $_[0]->{requestcount}
-}
-sub SystemRequestCount
-{
-  lock($_[0]->{systemrequestcount});
-  $_[0]->{systemrequestcount} = $_[1] if @_ > 1;
-  return $_[0]->{systemrequestcount}
+  return $_[0]->{requestcount};
 }
 
-sub IncRequestCount        { $_[0]->IncrementSharedField('requestcount') }
-sub IncSystemRequestCount  { $_[0]->IncrementSharedField('systemrequestcount') }
+sub SystemRequestCount
+{
+  lock( $_[0]->{systemrequestcount} );
+  $_[0]->{systemrequestcount} = $_[1] if @_ > 1;
+  return $_[0]->{systemrequestcount};
+}
+
+sub IncRequestCount       { $_[0]->IncrementSharedField( 'requestcount' ) }
+sub IncSystemRequestCount { $_[0]->IncrementSharedField( 'systemrequestcount' ) }
 
 # helper for atomic counters
 sub IncrementSharedField
 {
-  my $self = shift;
+  my $self      = shift;
   my $fieldName = shift;
-  
-  lock($self->{$fieldName});
+
+  lock( $self->{$fieldName} );
   return ++$self->{$fieldName};
 }
-
 
 sub new
 {
   my $class = shift;
   my $args  = shift;
 
-  my $self = { requestcount => undef, systemrequestcount => undef};
+  my $self = { requestcount => undef, systemrequestcount => undef };
   bless $self, $class;
-  share($self->{requestcount});
-  share($self->{systemrequestcount});
+  share( $self->{requestcount} );
+  share( $self->{systemrequestcount} );
 
-  $self->StartTime( time() ); # no need to share; set once and copied to children
-  $self->RequestCount(0);
-  $self->SystemRequestCount(0);
+  $self->StartTime( time() );    # no need to share; set once and copied to children
+  $self->RequestCount( 0 );
+  $self->SystemRequestCount( 0 );
 
   $self->__InitializeSerializers( $args->{Serializers} );
-  $self->__InitializeSessionManager( $args->{Transport} );
+  $self->__InitializeSessionManager( $args->{Transports} );
 
   $self->Threaded( $args->{Threaded} );
   $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
 
-  $self->Signatures({});
+  $self->Signatures( {} );
 
-  $self->Initialize($args) if ( $self->can('Initialize') );
+  $self->Initialize( $args ) if ( $self->can( 'Initialize' ) );
 
   return $self;
 }
 
 sub __InitializeSerializers
 {
-  my $self = shift;
+  my $self        = shift;
   my $serializers = shift;
 
-  $self->Serializers([]);
+  $self->Serializers( [] );
 
   # default
-  if(ref($serializers) ne 'ARRAY')
+  if ( ref( $serializers ) ne 'ARRAY' )
   {
     $serializers = \@defaultSerializers;
   }
 
-  foreach my $serializerType (@{$serializers})
+  foreach my $serializerType ( @{$serializers} )
   {
     my $serializerClass = "RPC::Lite::Serializer::$serializerType";
 
     eval "use $serializerClass";
-    if($@)
+    if ( $@ )
     {
-      warn("Could not load serializer of type [$serializerType]");
+      warn( "Could not load serializer of type [$serializerType]" );
       next;
     }
 
-    push(@{$self->Serializers}, $serializerClass->new());
+    push( @{ $self->Serializers }, $serializerClass->new() );
   }
 }
 
 sub __InitializeSessionManager
 {
-  my $self = shift;
-  my $transportSpec = shift;
-
-  my ($transportType, $transportArgString) = $transportSpec =~ /^(.*?);(.*)$/;
-  my @transportArgList = split(/,/, $transportArgString);
-
-  my %transportArgs;
-  foreach my $transportArg (@transportArgList)
-  {
-    my ($key, $value) = split(/=/, $transportArg, 2);
-    $transportArgs{$key} = $value;
-  }
+  my $self           = shift;
+  my $transportSpecs = shift;
 
   my $sessionManager = RPC::Lite::SessionManager->new(
-                                                      {
-                                                        TransportType => $transportType,
-                                                        TransportArgs => \%transportArgs,
-                                                      }
+                                                       {
+                                                         TransportSpecs => $transportSpecs,
+                                                       }
                                                      );
 
-  die("Could not create SessionManager!") if !$sessionManager;
+  die( "Could not create SessionManager!" ) if !$sessionManager;
 
-  $self->SessionManager($sessionManager);
+  $self->SessionManager( $sessionManager );
 }
 
 ############
@@ -192,8 +182,8 @@ sub Loop
   my $self = shift;
 
   $self->InitializeThreadPool();
-  
-  while (1)
+
+  while ( 1 )
   {
     $self->HandleRequest;
     $self->HandleResponses;
@@ -211,19 +201,19 @@ sub HandleRequest
   my $self = shift;
 
   my $session = $self->SessionManager->GetNextReadySession();
-  return if !defined($session);
-  
+  return if !defined( $session );
+
   my $request = $session->GetRequest();
   return if !defined $request;
-  
-  if($self->Threaded) # asynchronous operation
+
+  if ( $self->Threaded )    # asynchronous operation
   {
-    Debug("passing request to thread pool");
-    $self->ThreadPool->job($session, $request);
+    Debug( "passing request to thread pool" );
+    $self->ThreadPool->job( $session, $request );
   }
-  else # synchronous
+  else                      # synchronous
   {
-    $self->DispatchRequest($session, $request);
+    $self->DispatchRequest( $session, $request );
   }
 }
 
@@ -233,16 +223,16 @@ sub HandleResponses
   my $self = shift;
 
   return if !$self->Threaded;
-  
+
   my @readyJobs = $self->ThreadPool->results();
-  Debug("jobs finished: " . scalar(@readyJobs)) if @readyJobs;
-  foreach my $jobId (@readyJobs)
+  Debug( "jobs finished: " . scalar( @readyJobs ) ) if @readyJobs;
+  foreach my $jobId ( @readyJobs )
   {
-    my $response = $self->ThreadPool->result($jobId);
+    my $response = $self->ThreadPool->result( $jobId );
     my $clientId = $self->PoolJobs->{$jobId};
-    $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize($response) );
+    $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize( $response ) );
     delete $self->PoolJobs->{$jobId};
-    Debug("  id:$jobId");
+    Debug( "  id:$jobId" );
   }
 }
 
@@ -255,25 +245,25 @@ sub HandleResponses
 sub InitializeThreadPool
 {
   my $self = shift;
-  
+
   return if !$self->Threaded or $self->ThreadPool;
 
   eval "use Thread::Pool";
-  if ($@)
+  if ( $@ )
   {
     warn "Disabling threading for lack of Thread::Pool module.";
-    $self->Threaded(0);
+    $self->Threaded( 0 );
   }
   else
   {
-    Debug('threading enabled');
+    Debug( 'threading enabled' );
     my $pool = Thread::Pool->new(
                                   {
                                     'workers' => $self->WorkerThreads,
-                                    'do'      => sub { $self->DispatchRequest(@_) },
+                                    'do'      => sub { $self->DispatchRequest( @_ ) },
                                   }
                                 );
-    $self->ThreadPool($pool);    
+    $self->ThreadPool( $pool );
   }
 }
 
@@ -288,8 +278,8 @@ sub FindMethod
 {
   my ( $self, $methodName ) = @_;
 
-  Debug("looking for method in: " . ref($self));
-  my $coderef = $self->can($methodName) || $defaultMethods{$methodName};
+  Debug( "looking for method in: " . ref( $self ) );
+  my $coderef = $self->can( $methodName ) || $defaultMethods{$methodName};
 
   return $coderef;
 }
@@ -320,14 +310,14 @@ sub DispatchRequest
   my $method = $self->FindMethod( $request->Method );
   my $response;
 
-  if ($method)
+  if ( $method )
   {
 
     # implementation package has the method, so we call it with the params
-    Debug("dispatching to: " . $request->Method);
+    Debug( "dispatching to: " . $request->Method );
     eval { $response = $method->( $self, @{ $request->Params } ) };    # may return a pre-encoded Response, or just some data
-    Debug("  returned");
-    if ($@)
+    Debug( "  returned" );
+    if ( $@ )
     {
 
       # method died
@@ -337,16 +327,16 @@ sub DispatchRequest
       if ( UNIVERSAL::isa( $@, 'Error' ) )
       {
         $error = { %{$@} };                                            # copy the blessed hashref into a ref to a plain one
-        $error->{jsonclass} = [ ref($@), [] ];                         # tell json this is an actual object of some class
+        $error->{jsonclass} = [ ref( $@ ), [] ];                       # tell json this is an actual object of some class
       }
 
-      $response = RPC::Lite::Error->new($error);                       # FIXME security issue - exposing implementation details to the client
+      $response = RPC::Lite::Error->new( $error );                     # FIXME security issue - exposing implementation details to the client
     }
     elsif ( !UNIVERSAL::isa( $response, 'RPC::Lite::Response' ) )
     {
 
       # method just returned some plain data, so we construct a Response object with it
-      $response = RPC::Lite::Response->new($response);
+      $response = RPC::Lite::Response->new( $response );
     }
 
     # else, the method returned a Response object already so we just let it be
@@ -361,9 +351,9 @@ sub DispatchRequest
   $response->Id( $request->Id );    # make sure the response's id matches the request's id
 
   # only send a response for requests, not for notifications
-  if ( !$request->isa('RPC::Lite::Notification') )
+  if ( !$request->isa( 'RPC::Lite::Notification' ) )
   {
-    $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize($response) );
+    $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize( $response ) );
   }
 
   return 1;
@@ -373,18 +363,18 @@ sub DispatchRequest
 
 sub AddSignature
 {
-  my $self = shift;
+  my $self            = shift;
   my $signatureString = shift;
 
-  my $signature = RPC::Lite::Signature->new($signatureString);
+  my $signature = RPC::Lite::Signature->new( $signatureString );
 
-  if(!$self->can($signature->MethodName()))
+  if ( !$self->can( $signature->MethodName() ) )
   {
-    warn("Attempted to add a signature for a method [" . $signature->MethodName . "] we are not capable of!");
+    warn( "Attempted to add a signature for a method [" . $signature->MethodName . "] we are not capable of!" );
     return;
   }
 
-  $self->Signatures->{$signature->MethodName} = $signature;
+  $self->Signatures->{ $signature->MethodName } = $signature;
 }
 
 #=============
@@ -394,7 +384,7 @@ sub Debug
   return if !$DEBUG;
 
   my $message = shift;
-  my ($package, $filename, $line, $subroutine) = caller(1);
+  my ( $package, $filename, $line, $subroutine ) = caller( 1 );
   my $threadId = threads->tid;
   print STDERR "[$threadId] $subroutine: $message\n";
 }
@@ -428,11 +418,11 @@ sub _GetSignatures
 
   my @signatures;
 
-  foreach my $methodName (keys(%{$self->Signatures}))
+  foreach my $methodName ( keys( %{ $self->Signatures } ) )
   {
     my $signature = $self->Signatures->{$methodName};
 
-    push(@signatures, $signature->AsString());
+    push( @signatures, $signature->AsString() );
   }
 
   return \@signatures;
@@ -440,7 +430,7 @@ sub _GetSignatures
 
 sub _GetSignature
 {
-  my $self = shift;
+  my $self       = shift;
   my $methodName = shift;
 
   return $self->Signatures->{$methodName}->AsString();

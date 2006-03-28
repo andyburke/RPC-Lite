@@ -11,7 +11,7 @@ my $threaded = $ARGV[0] eq '-t';
 
 my $server = TestServer->new(
   {
-    Transport   => RPC::Lite::Transport::TCP->new( { ListenPort => 10000 } ),
+    Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
     Serializers => ['JSON', 'XML'],
     Threaded    => $threaded,
     Threaded    => 1,

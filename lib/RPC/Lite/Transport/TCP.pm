@@ -28,26 +28,36 @@ sub DisconnectedClients { $_[0]->{disconnectedclients} = $_[1] if @_ > 1; $_[0]-
 
 sub new
 {
-  my $class = shift;
-  my $args  = shift;
+  my $class     = shift;
+  my $argString = shift;
 
   my $self = {};
   bless $self, $class;
 
-  $self->Personality( $args->{Personality} );
-
+  my @args = split( ',', $argString );
+  foreach my $arg ( @args )
+  {
+    my ($name, $value) = split( '=', $arg );
+    
+    if ( !$self->can( $name ) )
+    {
+      die( "Unknown argument: $name" );
+    }
+    
+    $self->$name( $value );
+  }
+  
   if ( $self->IsClient )
   {
-    $self->Host( $args->{Host} );
-    $self->Port( $args->{Port} );
-    $self->Timeout( $args->{Timeout} );    # defaults to undef, ie. infinite blocking
+    $self->Host or die( "Must specify a host to connect to!" );
+    $self->Port or die( "Must specify port!" );
     $self->ClientSelect( IO::Select->new );
   }
 
   if ( $self->IsServer )
   {
-    $self->ListenPort( $args->{ListenPort} );
-    $self->LocalAddr( $args->{LocalAddr} );
+    $self->ListenPort or die( "Must specify a port to listen on!" );
+    $self->LocalAddr or $self->LocalAddr( 'localhost' );
     $self->ServerSelect( IO::Select->new );
     $self->ClientIdMap(         {} );
     $self->DisconnectedClients( {} );
