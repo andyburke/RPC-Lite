@@ -18,18 +18,11 @@ RPC::Lite::Client - Lightweight RPC client framework.
 =head1 SYNOPSIS
 
   use RPC::Lite::Client;
-  use RPC::Lite::Transport::TCP;
-  use RPC::Lite::Serializer::JSON;
 
   my $client = RPC::Lite::Client->new(
     {
-      Transport  => RPC::Lite::Transport::TCP->new(
-        {
-          Host => 'localhost',
-          Port => 10000
-        }
-      ),
-      Serializer => RPC::Lite::Serializer::JSON->new(),
+      Transport  => 'TCP:Host=blah.foo.com,Port=10000',
+      Serializer => 'JSON',
     }
   );
 
@@ -60,15 +53,62 @@ sub new
   my $self = {};
   bless $self, $class;
 
-  $self->Serializer( $args->{Serializer} ) or die('A serializer is required!');
-  $self->Transport( $args->{Transport} )   or die('A transport is required!');
-
+  $self->__InitializeSerializer( $args->{Serializer} );
+  $self->__InitializeTransport( $args->{Transport} );
+  
   $self->IdCounter(1);
   $self->CallbackIdMap({});
 
   $self->Initialize($args) if ( $self->can('Initialize') );
 
   return $self;
+}
+
+sub __InitializeSerializer
+{
+  my $self = shift;
+  my $serializerType = shift;
+  
+  my $serializerClass = 'RPC::Lite::Serializer::' . $serializerType;
+
+  eval "use $serializerClass";
+  if ( $@ )
+  {
+    die( "Could not load serializer of type [$serializerClass]" );
+  }
+
+  my $serializer = $serializerClass->new();
+  if ( !defined( $serializer ) )
+  {
+    die( "Could not construct serializer: $serializerClass" );
+  }
+  
+  $self->Serializer( $serializer );
+}
+
+sub __InitializeTransport
+{
+  my $self = shift;
+  
+  my $transportSpec = shift;
+  
+  my ( $transportType, $transportArgString ) = split( ':', $transportSpec, 2 );
+  
+  my $transportClass = 'RPC::Lite::Transport::' . $transportType;
+
+  eval "use $transportClass";
+  if ( $@ )
+  {
+    die( "Could not load transport of type [$transportClass]" );
+  }
+
+  my $transport = $transportClass->new( $transportArgString );
+  if ( !defined( $transport ) )
+  {
+    die( "Could not construct transport: $transportClass" );
+  }
+  
+  $self->Transport( $transport );
 }
 
 ############
@@ -149,8 +189,8 @@ sub RequestResponse
 {
   my $self = shift;
 
-  $self->SendRequest( RPC::Lite::Request->new( shift, \@_ ) );    # method and params arrayref
-  return $self->GetResponse();
+  $self->__SendRequest( RPC::Lite::Request->new( shift, \@_ ) );    # method and params arrayref
+  return $self->__GetResponse();
 }
 
 =item Notify($methodName[, param[, ...]])
@@ -162,7 +202,7 @@ Sends a notification to the server, expects no response.
 sub Notify
 {
   my $self = shift;
-  $self->SendRequest( RPC::Lite::Notification->new( shift, \@_ ) );    # method and params arrayref
+  $self->__SendRequest( RPC::Lite::Notification->new( shift, \@_ ) );    # method and params arrayref
 }
 
 sub Connect
@@ -176,7 +216,7 @@ sub Connect
 ##############
 # The following are private methods.
 
-sub SendRequest
+sub __SendRequest
 {
   my ( $self, $request ) = @_;                                         # request could be a Notification
 
@@ -186,7 +226,7 @@ sub SendRequest
   return $id;
 }
 
-sub GetResponse
+sub __GetResponse
 {
   my $self = shift;
   my $timeout = shift;

@@ -20,6 +20,11 @@ sub new
   bless $self, $class;
 }
 
+sub CannotDeserialize
+{
+  return 0;
+}
+
 sub Serialize
 {
   return $_[1];

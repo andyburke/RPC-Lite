@@ -21,6 +21,14 @@ sub new
   bless $self, $class;
 }
 
+sub CannotDeserialize
+{
+  my $self = shift;
+  my $data = shift;
+  
+  return $data !~ /^\s*\<\s*/;
+}
+
 sub Serialize
 {
   my $self = shift;

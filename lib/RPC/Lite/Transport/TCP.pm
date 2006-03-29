@@ -47,6 +47,11 @@ sub new
     $self->$name( $value );
   }
   
+  if ( !$self->GuessPersonality() )
+  {
+    die( "Could not determine personality! (didn't set Host or ListenPort args?)" );
+  }
+
   if ( $self->IsClient )
   {
     $self->Host or die( "Must specify a host to connect to!" );
@@ -65,6 +70,25 @@ sub new
   }
 
   return $self;
+}
+
+sub GuessPersonality
+{
+  my $self = shift;
+  
+  if ( $self->ListenPort() )
+  {
+    $self->Personality( 'Server' );
+    return 1;
+  }
+  
+  if ( $self->Host() )
+  {
+    $self->Personality( 'Client' );
+    return 1;
+  }
+  
+  return 0;
 }
 
 ###############################################################
@@ -185,7 +209,7 @@ sub GetNextRequestingClient
     lock($self->{disconnectedclients});
     foreach my $clientId (keys %{$self->DisconnectedClients})
     {
-      my $socket = IO::Socket::INET->new_from_fd( $clientId, 'r+' );
+      my $socket = IO::Socket::INET->new_from_fd( $self->ClientIdMap->{$clientId}, 'r+' );
       delete $self->DisconnectedClients->{$clientId};
       delete $self->ClientIdMap->{$clientId};
       $socket or next;
@@ -196,20 +220,17 @@ sub GetNextRequestingClient
   my ($socket) = $self->ServerSelect->can_read(.01);    # try to find any ready clients
   return undef if !$socket;
 
-  my $clientId = fileno($socket);
-
   if ( $socket == $self->ListenSocket )                 # new connection
   {
     $socket = $socket->accept;
     $self->ServerSelect->add($socket);                  # add connection to our select list for service
 
-    $self->ClientIdMap->{$clientId} = $socket;          # keep a reference so that the socket is not GC'd
-                                                        # FIXME need to worry about cleaning this list up eventually?
+    $self->ClientIdMap->{'TCP:' . fileno( $socket )} = fileno( $socket );          # keep a reference so that the socket is not GC'd
 
-    $clientId = undef;                                  # don't really have a request from this client yet
+    return undef;                                  # don't really have a request from this client yet
   }
 
-  return $clientId;
+  return 'TCP:' . fileno( $socket );
 }
 
 sub ReadRequestContent
@@ -220,7 +241,7 @@ sub ReadRequestContent
   my $content = '';
   my $count   = 0;
 
-  my $socket = IO::Socket::INET->new_from_fd( $clientId, 'r+' );
+  my $socket = IO::Socket::INET->new_from_fd( $self->ClientIdMap->{$clientId}, 'r+' );
   return undef if !$socket;
 
   # FIXME comment this
@@ -248,7 +269,7 @@ sub WriteResponseContent
   return undef if !$self->IsServer;
 
   my $success = 0;
-  my $socket = IO::Socket::INET->new_from_fd( $clientId, 'r+' );
+  my $socket = IO::Socket::INET->new_from_fd( $self->ClientIdMap->{$clientId}, 'r+' );
   return $success if !$socket;
 
   $content .= chr(0);

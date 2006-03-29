@@ -13,12 +13,12 @@ use RPC::Lite::Response;
 use RPC::Lite::Error;
 use RPC::Lite::Signature;
 
+use Data::Dumper;
+
 my $DEBUG = $ENV{RPC_LITE_DEBUG};
 
 my $systemPrefix         = 'system';
 my $workerThreadsDefault = 10;
-
-my @defaultSerializers = qw( JSON XML Null );
 
 =pod
 
@@ -60,11 +60,11 @@ my %defaultMethods = (
                        "$systemPrefix.GetSignature"       => \&_GetSignature,
                      );
 
-sub Serializers    { $_[0]->{serializers}    = $_[1] if @_ > 1; $_[0]->{serializers} }
 sub SessionManager { $_[0]->{sessionmanager} = $_[1] if @_ > 1; $_[0]->{sessionmanager} }
 sub StartTime      { $_[0]->{starttime}      = $_[1] if @_ > 1; $_[0]->{starttime} }
 sub Threaded       { $_[0]->{threaded}       = $_[1] if @_ > 1; $_[0]->{threaded} }
 sub ThreadPool     { $_[0]->{threadpool}     = $_[1] if @_ > 1; $_[0]->{threadpool} }
+sub PoolJobs     { $_[0]->{pooljobs}     = $_[1] if @_ > 1; $_[0]->{pooljobs} }
 sub WorkerThreads  { $_[0]->{workerthreads}  = $_[1] if @_ > 1; $_[0]->{workerthreads} }
 sub Signatures     { $_[0]->{signatures}     = $_[1] if @_ > 1; $_[0]->{signatures} }
 
@@ -109,8 +109,7 @@ sub new
   $self->RequestCount( 0 );
   $self->SystemRequestCount( 0 );
 
-  $self->__InitializeSerializers( $args->{Serializers} );
-  $self->__InitializeSessionManager( $args->{Transports} );
+  $self->__InitializeSessionManager( $args->{Transports}, $args->{Serializers} );
 
   $self->Threaded( $args->{Threaded} );
   $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
@@ -122,42 +121,16 @@ sub new
   return $self;
 }
 
-sub __InitializeSerializers
-{
-  my $self        = shift;
-  my $serializers = shift;
-
-  $self->Serializers( [] );
-
-  # default
-  if ( ref( $serializers ) ne 'ARRAY' )
-  {
-    $serializers = \@defaultSerializers;
-  }
-
-  foreach my $serializerType ( @{$serializers} )
-  {
-    my $serializerClass = "RPC::Lite::Serializer::$serializerType";
-
-    eval "use $serializerClass";
-    if ( $@ )
-    {
-      warn( "Could not load serializer of type [$serializerType]" );
-      next;
-    }
-
-    push( @{ $self->Serializers }, $serializerClass->new() );
-  }
-}
-
 sub __InitializeSessionManager
 {
   my $self           = shift;
   my $transportSpecs = shift;
+  my $serializers    = shift;
 
   my $sessionManager = RPC::Lite::SessionManager->new(
                                                        {
                                                          TransportSpecs => $transportSpecs,
+                                                         Serializers    => $serializers,
                                                        }
                                                      );
 
@@ -200,7 +173,10 @@ sub HandleRequest
 {
   my $self = shift;
 
-  my $session = $self->SessionManager->GetNextReadySession();
+  my $sessionId = $self->SessionManager->GetNextReadySessionId();
+  return if !defined( $sessionId );
+
+  my $session = $self->SessionManager->GetSession( $sessionId );
   return if !defined( $session );
 
   my $request = $session->GetRequest();
@@ -209,11 +185,15 @@ sub HandleRequest
   if ( $self->Threaded )    # asynchronous operation
   {
     Debug( "passing request to thread pool" );
-    $self->ThreadPool->job( $session, $request );
+    # god, dirty, we need to save this return value or the
+    # results will be discarded...
+    my $jobId = $self->ThreadPool->job( $sessionId, $request );
+    $self->PoolJobs->{$jobId} = $sessionId;
   }
   else                      # synchronous
   {
-    $self->DispatchRequest( $session, $request );
+    my $result = $self->DispatchRequest( $sessionId, $request );
+    $session->Write( $result ) if defined( $result );
   }
 }
 
@@ -229,10 +209,14 @@ sub HandleResponses
   foreach my $jobId ( @readyJobs )
   {
     my $response = $self->ThreadPool->result( $jobId );
-    my $clientId = $self->PoolJobs->{$jobId};
-    $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize( $response ) );
+    my $sessionId = $self->PoolJobs->{$jobId};
+    my $session = $self->SessionManager->GetSession( $sessionId );
+    if ( defined( $session ) )
+    {
+      $session->Write( $response );
+      Debug( "  id:$jobId" );
+    }
     delete $self->PoolJobs->{$jobId};
-    Debug( "  id:$jobId" );
   }
 }
 
@@ -260,10 +244,11 @@ sub InitializeThreadPool
     my $pool = Thread::Pool->new(
                                   {
                                     'workers' => $self->WorkerThreads,
-                                    'do'      => sub { $self->DispatchRequest( @_ ) },
+                                    'do'      => sub { my $result = $self->DispatchRequest( @_ ); return $result; },
                                   }
                                 );
     $self->ThreadPool( $pool );
+    $self->PoolJobs( {} );
   }
 }
 
@@ -294,7 +279,7 @@ return value from the method.
 
 sub DispatchRequest
 {
-  my ( $self, $clientId, $request ) = @_;
+  my ( $self, $sessionId, $request ) = @_;
 
   ###########################################################
   ## keep track of how many method calls we've handled...
@@ -308,7 +293,7 @@ sub DispatchRequest
   }
 
   my $method = $self->FindMethod( $request->Method );
-  my $response;
+  my $response = undef;
 
   if ( $method )
   {
@@ -316,18 +301,17 @@ sub DispatchRequest
     # implementation package has the method, so we call it with the params
     Debug( "dispatching to: " . $request->Method );
     eval { $response = $method->( $self, @{ $request->Params } ) };    # may return a pre-encoded Response, or just some data
-    Debug( "  returned" );
+    Debug( "  returned:\n\n" );
+    Debug( Dumper $response );
     if ( $@ )
     {
-
-      # method died
+      Debug( "method died" );
 
       # attempt to detect an Error.pm object
       my $error = $@;
       if ( UNIVERSAL::isa( $@, 'Error' ) )
       {
         $error = { %{$@} };                                            # copy the blessed hashref into a ref to a plain one
-        $error->{jsonclass} = [ ref( $@ ), [] ];                       # tell json this is an actual object of some class
       }
 
       $response = RPC::Lite::Error->new( $error );                     # FIXME security issue - exposing implementation details to the client
@@ -336,6 +320,7 @@ sub DispatchRequest
     {
 
       # method just returned some plain data, so we construct a Response object with it
+      
       $response = RPC::Lite::Response->new( $response );
     }
 
@@ -350,13 +335,10 @@ sub DispatchRequest
 
   $response->Id( $request->Id );    # make sure the response's id matches the request's id
 
-  # only send a response for requests, not for notifications
-  if ( !$request->isa( 'RPC::Lite::Notification' ) )
-  {
-    $self->Transport->WriteResponseContent( $clientId, $self->Serializer->Serialize( $response ) );
-  }
-
-  return 1;
+  use Data::Dumper;
+  Debug( "returning:\n\n" );
+  Debug(  Dumper $response ); 
+  return $response;
 }
 
 #=============

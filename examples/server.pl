@@ -1,20 +1,18 @@
 use strict;
 
 use RPC::Lite::Server;
-use RPC::Lite::Transport::TCP;
 
 use Error;
 
 use BadPackage;
 
-my $threaded = $ARGV[0] eq '-t';
+my $threaded = $ARGV[0] eq '-t' ? 1 : 0;
 
 my $server = TestServer->new(
   {
     Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
     Serializers => ['JSON', 'XML'],
     Threaded    => $threaded,
-    Threaded    => 1,
   }
 );
 
