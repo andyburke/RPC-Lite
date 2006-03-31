@@ -28,18 +28,40 @@ RPC::Lite::Server - Lightweight RPC server framework.
 
 =head1 SYNOPSIS
 
-  use RPC::Lite::Server;
-  use RPC::Lite::Transport::TCP;
+  use strict;
 
-  my $server = RPC::Lite::Server->new(
+  use RPC::Lite::Server;
+
+  my $server = ExampleServer->new(
     {
-      Transport   => 'TCP;ListenPort=10000,OtherOption=value',
-      Serializers => ['JSON', 'XML'],
+      Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
+      Serializers => [ 'JSON', 'XML' ],
+      Threaded    => 1,
     }
   );
 
-  $server->Loop(); # never returns
+  $server->Loop;
 
+  ###########################
+
+  package ExampleServer;
+
+  use base qw(RPC::Lite::Server);
+
+  sub Initialize
+  {
+    my $self = shift;
+
+    $self->AddSignature('GetTime=int:'); # optional signatures
+  }
+
+  sub GetTime
+  {
+    return time();
+  }
+
+  ...
+ 
 =head1 DESCRIPTION
 
 RPC::Lite::Server implements a very lightweight remote process
@@ -82,11 +104,11 @@ sub SystemRequestCount
   return $_[0]->{systemrequestcount};
 }
 
-sub IncRequestCount       { $_[0]->IncrementSharedField( 'requestcount' ) }
-sub IncSystemRequestCount { $_[0]->IncrementSharedField( 'systemrequestcount' ) }
+sub __IncRequestCount       { $_[0]->__IncrementSharedField( 'requestcount' ) }
+sub __IncSystemRequestCount { $_[0]->__IncrementSharedField( 'systemrequestcount' ) }
 
 # helper for atomic counters
-sub IncrementSharedField
+sub __IncrementSharedField
 {
   my $self      = shift;
   my $fieldName = shift;
@@ -154,7 +176,7 @@ sub Loop
 {
   my $self = shift;
 
-  $self->InitializeThreadPool();
+  $self->__InitializeThreadPool();
 
   while ( 1 )
   {
@@ -184,7 +206,7 @@ sub HandleRequest
 
   if ( $self->Threaded )    # asynchronous operation
   {
-    Debug( "passing request to thread pool" );
+    __Debug( "passing request to thread pool" );
     # god, dirty, we need to save this return value or the
     # results will be discarded...
     my $jobId = $self->ThreadPool->job( $sessionId, $request );
@@ -192,7 +214,7 @@ sub HandleRequest
   }
   else                      # synchronous
   {
-    my $result = $self->DispatchRequest( $sessionId, $request );
+    my $result = $self->__DispatchRequest( $sessionId, $request );
     $session->Write( $result ) if defined( $result );
   }
 }
@@ -205,7 +227,7 @@ sub HandleResponses
   return if !$self->Threaded;
 
   my @readyJobs = $self->ThreadPool->results();
-  Debug( "jobs finished: " . scalar( @readyJobs ) ) if @readyJobs;
+  __Debug( "jobs finished: " . scalar( @readyJobs ) ) if @readyJobs;
   foreach my $jobId ( @readyJobs )
   {
     my $response = $self->ThreadPool->result( $jobId );
@@ -214,7 +236,7 @@ sub HandleResponses
     if ( defined( $session ) )
     {
       $session->Write( $response );
-      Debug( "  id:$jobId" );
+      __Debug( "  id:$jobId" );
     }
     delete $self->PoolJobs->{$jobId};
   }
@@ -226,7 +248,7 @@ sub HandleResponses
 ##############
 # The following are private methods.
 
-sub InitializeThreadPool
+sub __InitializeThreadPool
 {
   my $self = shift;
 
@@ -240,11 +262,11 @@ sub InitializeThreadPool
   }
   else
   {
-    Debug( 'threading enabled' );
+    __Debug( 'threading enabled' );
     my $pool = Thread::Pool->new(
                                   {
                                     'workers' => $self->WorkerThreads,
-                                    'do'      => sub { my $result = $self->DispatchRequest( @_ ); return $result; },
+                                    'do'      => sub { my $result = $self->__DispatchRequest( @_ ); return $result; },
                                   }
                                 );
     $self->ThreadPool( $pool );
@@ -259,11 +281,11 @@ or undef if it doesn't exist.
 
 =cut
 
-sub FindMethod
+sub __FindMethod
 {
   my ( $self, $methodName ) = @_;
 
-  Debug( "looking for method in: " . ref( $self ) );
+  __Debug( "looking for method in: " . ref( $self ) );
   my $coderef = $self->can( $methodName ) || $defaultMethods{$methodName};
 
   return $coderef;
@@ -277,7 +299,7 @@ return value from the method.
 
 =cut
 
-sub DispatchRequest
+sub __DispatchRequest
 {
   my ( $self, $sessionId, $request ) = @_;
 
@@ -285,27 +307,27 @@ sub DispatchRequest
   ## keep track of how many method calls we've handled...
   if ( $request->Method !~ /^$systemPrefix\./ )
   {
-    $self->RequestCount( $self->RequestCount + 1 );
+    $self->__IncRequestCount();
   }
   else
   {
-    $self->SystemRequestCount( $self->SystemRequestCount + 1 );
+    $self->__IncSystemRequestCount();
   }
 
-  my $method = $self->FindMethod( $request->Method );
+  my $method = $self->__FindMethod( $request->Method );
   my $response = undef;
 
   if ( $method )
   {
 
     # implementation package has the method, so we call it with the params
-    Debug( "dispatching to: " . $request->Method );
+    __Debug( "dispatching to: " . $request->Method );
     eval { $response = $method->( $self, @{ $request->Params } ) };    # may return a pre-encoded Response, or just some data
-    Debug( "  returned:\n\n" );
-    Debug( Dumper $response );
+    __Debug( "  returned:\n\n" );
+    __Debug( Dumper $response );
     if ( $@ )
     {
-      Debug( "method died" );
+      __Debug( "method died" );
 
       # attempt to detect an Error.pm object
       my $error = $@;
@@ -336,8 +358,8 @@ sub DispatchRequest
   $response->Id( $request->Id );    # make sure the response's id matches the request's id
 
   use Data::Dumper;
-  Debug( "returning:\n\n" );
-  Debug(  Dumper $response ); 
+  __Debug( "returning:\n\n" );
+  __Debug(  Dumper $response ); 
   return $response;
 }
 
@@ -361,7 +383,7 @@ sub AddSignature
 
 #=============
 
-sub Debug
+sub __Debug
 {
   return if !$DEBUG;
 
