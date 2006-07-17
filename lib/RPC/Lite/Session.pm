@@ -2,19 +2,22 @@ package RPC::Lite::Session;
 
 use strict;
 
-sub StartTime       { $_[0]->{starttime}              = $_[1] if @_ > 1; $_[0]->{starttime} }
-sub ClientId        { $_[0]->{clientid}               = $_[1] if @_ > 1; $_[0]->{clientid} }
-sub Serializers     { $_[0]->{serializers}             = $_[1] if @_ > 1; $_[0]->{serializers} }
-sub Serializer      { $_[0]->{serializer}             = $_[1] if @_ > 1; $_[0]->{serializer} }
-sub Transport       { $_[0]->{transport}              = $_[1] if @_ > 1; $_[0]->{transport} }
-sub Disconnected    { $_[0]->{disconnected}              = $_[1] if @_ > 1; $_[0]->{disconnected} }
+use RPC::Lite;
+
+sub StartTime      { $_[0]->{starttime}      = $_[1] if @_ > 1; $_[0]->{starttime} }
+sub ClientId       { $_[0]->{clientid}       = $_[1] if @_ > 1; $_[0]->{clientid} }
+sub SessionManager { $_[0]->{sessionmanager} = $_[1] if @_ > 1; $_[0]->{sessionmanager} }
+sub SerializerType { $_[0]->{serializertype} = $_[1] if @_ > 1; $_[0]->{serializertype} }
+sub Transport      { $_[0]->{transport}      = $_[1] if @_ > 1; $_[0]->{transport} }
+sub Established    { $_[0]->{established}    = $_[1] if @_ > 1; $_[0]->{established} }
+sub Disconnected   { $_[0]->{disconnected}   = $_[1] if @_ > 1; $_[0]->{disconnected} }
 
 sub new
 {
   my $class          = shift;
   my $clientId       = shift;
   my $transport      = shift;
-  my $serializers    = shift;
+  my $sessionManager = shift;
   my $extraInfo      = shift;
 
   my $self = {};
@@ -24,8 +27,9 @@ sub new
 
   $self->ClientId( $clientId );
   $self->Transport( $transport );
-  $self->Serializers( $serializers );
-  $self->Serializer( undef );
+  $self->SessionManager( $sessionManager );
+  $self->SerializerType( undef );
+  $self->Established( 0 );
   $self->Disconnected( 0 );
 
   return $self;
@@ -37,16 +41,56 @@ sub GetRequest
 
   return undef if $self->Disconnected();
 
-  my $requestContent = $self->Transport->ReadRequestContent($self->ClientId);
-
-  if ( !defined($requestContent) )
+  my $requestContent = $self->Transport->ReadRequestContent( $self->ClientId );
+  print "Request:\n$requestContent\n\n";
+  
+  if ( !defined( $requestContent ) )
   {
     $self->Disconnected( 1 );
     return;
   }
-  
-  return undef if !length($requestContent);
 
+  return undef if !length( $requestContent );
+
+  # try to process the handshake
+  if ( !$self->Established() )
+  {
+    chomp $requestContent;
+    
+    # handshake string examples:
+    #
+    #  RPC-Lite 1.0 / JSON 1.1
+    #  RPC-Lite 2.2 / XML 3.2
+    if ( $requestContent =~ /^RPC-Lite (.*?) \/ (.*?) (.*?)$/ )
+    {
+      my $rpcLiteVersion = $1;
+      my $serializerType = $2;
+      my $serializerVersion = $3;
+      
+      # FIXME return some kind of error to the client about why it's being dropped?
+      
+      if ( !RPC::Lite::VersionSupported( $rpcLiteVersion ) )
+      {
+        $self->Disconnected( 1 );
+        return;
+      }
+      
+      if ( !$self->SessionManager->__InitializeSerializer( $serializerType, $serializerVersion ) )
+      {
+        $self->Disconnected( 1 );
+        return;
+      }
+      
+      $self->SerializerType( $serializerType );
+      $self->Established( 1 );
+    }
+    else
+    {
+      $self->Disconnected( 1 );
+      return;
+    }
+  }
+  
   if ( !defined( $self->Serializer ) )
   {
     if ( !$self->DetectSerializer( $requestContent ) )
@@ -55,34 +99,19 @@ sub GetRequest
       return undef;
     }
   }
-  
-  my $request = $self->Serializer->Deserialize($requestContent);
+
+  my $request = $self->SessionManager->Serializers->{ $self->SerializerType() }->Deserialize( $requestContent );
 
   return $request;
-}
-
-sub DetectSerializer
-{
-  my $self = shift;
-  my $request = shift;
-  
-  foreach my $serializer ( @{ $self->Serializers } )
-  {
-    next if ( $serializer->CannotDeserialize( $request ) );
-    
-    $self->Serializer( $serializer );
-    return 1;
-  }
-  
-  return 0;
 }
 
 sub Write
 {
   my $self = shift;
   my $data = shift;
-  
-  return $self->Transport->WriteResponseContent( $self->ClientId, $self->Serializer->Serialize( $data ) );
+
+  my $serializedContent = $self->SessionManager->Serializers->{ $self->SerializerType() }->Serialize( $data );
+  return $self->Transport->WriteResponseContent( $self->ClientId, $serializedContent );
 }
 
 1;

@@ -40,10 +40,12 @@ handling.
 
 =cut
 
-sub Serializer    { $_[0]->{serializer}    = $_[1] if @_ > 1; $_[0]->{serializer} }
-sub Transport     { $_[0]->{transport}     = $_[1] if @_ > 1; $_[0]->{transport} }
-sub IdCounter     { $_[0]->{idcounter}     = $_[1] if @_ > 1; $_[0]->{idcounter} }
-sub CallbackIdMap { $_[0]->{callbackidmap} = $_[1] if @_ > 1; $_[0]->{callbackidmap} }    
+sub SerializerType { $_[0]->{serializertype} = $_[1] if @_ > 1; $_[0]->{serializertype} }
+sub Serializer     { $_[0]->{serializer}     = $_[1] if @_ > 1; $_[0]->{serializer} }
+sub Transport      { $_[0]->{transport}      = $_[1] if @_ > 1; $_[0]->{transport} }
+sub IdCounter      { $_[0]->{idcounter}      = $_[1] if @_ > 1; $_[0]->{idcounter} }
+sub CallbackIdMap  { $_[0]->{callbackidmap}  = $_[1] if @_ > 1; $_[0]->{callbackidmap} }
+sub Connected      { $_[0]->{connected}  = $_[1] if @_ > 1; $_[0]->{connected} }
 
 sub new
 {
@@ -53,22 +55,24 @@ sub new
   my $self = {};
   bless $self, $class;
 
+  $self->Connected( 0 );
+  
   $self->__InitializeSerializer( $args->{Serializer} );
   $self->__InitializeTransport( $args->{Transport} );
-  
-  $self->IdCounter(1);
-  $self->CallbackIdMap({});
 
-  $self->Initialize($args) if ( $self->can('Initialize') );
+  $self->IdCounter( 1 );
+  $self->CallbackIdMap( {} );
+
+  $self->Initialize( $args ) if ( $self->can( 'Initialize' ) );
 
   return $self;
 }
 
 sub __InitializeSerializer
 {
-  my $self = shift;
+  my $self           = shift;
   my $serializerType = shift;
-  
+
   my $serializerClass = 'RPC::Lite::Serializer::' . $serializerType;
 
   eval "use $serializerClass";
@@ -82,18 +86,19 @@ sub __InitializeSerializer
   {
     die( "Could not construct serializer: $serializerClass" );
   }
-  
+
+  $self->SerializerType( $serializerType );
   $self->Serializer( $serializer );
 }
 
 sub __InitializeTransport
 {
   my $self = shift;
-  
+
   my $transportSpec = shift;
-  
+
   my ( $transportType, $transportArgString ) = split( ':', $transportSpec, 2 );
-  
+
   my $transportClass = 'RPC::Lite::Transport::' . $transportType;
 
   eval "use $transportClass";
@@ -107,7 +112,7 @@ sub __InitializeTransport
   {
     die( "Could not construct transport: $transportClass" );
   }
-  
+
   $self->Transport( $transport );
 }
 
@@ -126,8 +131,8 @@ sub Request
 {
   my $self = shift;
 
-  my $response = $self->RequestResponse(@_);
-  if ( $response->isa('RPC::Lite::Error') )
+  my $response = $self->RequestResponse( @_ );
+  if ( $response->isa( 'RPC::Lite::Error' ) )
   {
     eval { require Error; };
     if ( !$@ )
@@ -136,10 +141,10 @@ sub Request
       {
         my $objectInitializer = delete $response->Error->{jsonclass};
         my ( $class, @params ) = @$objectInitializer;
-        my $errorObject = eval { $class->new(@params) };    # FIXME pass jsonclass constructor params instead?
-        if ($@)
+        my $errorObject = eval { $class->new( @params ) };    # FIXME pass jsonclass constructor params instead?
+        if ( $@ )
         {
-          $errorObject = $@;                                # FIXME improve? this will set the local eval error as the error message so the local user can see what they need to install
+          $errorObject = $@;                                  # FIXME improve? this will set the local eval error as the error message so the local user can see what they need to install
         }
         else
         {
@@ -150,7 +155,7 @@ sub Request
             $errorObject->{$key} = $value;
           }
         }
-        $response->Error($errorObject);
+        $response->Error( $errorObject );
       }
     }
 
@@ -174,7 +179,7 @@ sub AsyncRequest
   my $methodName = shift;
 
   # SendRequest returns the Id the given request was assigned
-  my $requestId = $self->SendRequest($methodName, @_);
+  my $requestId = $self->SendRequest( $methodName, @_ );
   $self->CallbackIdMap->{$requestId} = $callBack;
 }
 
@@ -208,7 +213,21 @@ sub Notify
 sub Connect
 {
   my $self = shift;
+  
+  return 1 if ( $self->Connected() );
+
+  print "Connecting...\n";
+    
   $self->Transport->Connect();
+
+  print $RPC::Lite::HANDSHAKEFORMATSTRING . "\n";
+  print $RPC::Lite::VERSION . "\n";
+  my $handshakeContent = sprintf( $RPC::Lite::HANDSHAKEFORMATSTRING, $RPC::Lite::VERSION, $self->SerializerType(), $self->Serializer->GetVersion() );
+  print $handshakeContent . "\n";
+  $self->Transport->WriteRequestContent( $handshakeContent );
+  
+  $self->Connected( 1 );
+  return 1;
 }
 
 # FIXME sub NotifyResponse, for trapping local transport errors cleanly?
@@ -218,44 +237,46 @@ sub Connect
 
 sub __SendRequest
 {
-  my ( $self, $request ) = @_;                                         # request could be a Notification
+  my ( $self, $request ) = @_;    # request could be a Notification
+
+  return -1 if ( !$self->Connect() );
 
   my $id = $self->IdCounter( $self->IdCounter + 1 );
-  $request->Id($id);
-  $self->Transport->WriteRequestContent( $self->Serializer->Serialize($request) );
+  $request->Id( $id );
+  $self->Transport->WriteRequestContent( $self->Serializer->Serialize( $request ) );
   return $id;
 }
 
 sub __GetResponse
 {
-  my $self = shift;
+  my $self    = shift;
   my $timeout = shift;
 
-  my $responseContent = $self->Transport->ReadResponseContent($timeout);
+  my $responseContent = $self->Transport->ReadResponseContent( $timeout );
 
-  if (!length($responseContent))
+  if ( !length( $responseContent ) )
   {
-    if($timeout or $self->Transport->Timeout)
+    if ( $timeout or $self->Transport->Timeout )
     {
-      return; # no error, just no response yet
+      return;    # no error, just no response yet
     }
     else
     {
-      return RPC::Lite::Error->new("Error reading data from server!");
+      return RPC::Lite::Error->new( " Error reading data from server !" );
     }
   }
-  
-  my $response        = $self->Serializer->Deserialize($responseContent);
 
-  if ( !defined($response) )
+  my $response = $self->Serializer->Deserialize( $responseContent );
+
+  if ( !defined( $response ) )
   {
-    return RPC::Lite::Error->new("Could not deserialize response!");
+    return RPC::Lite::Error->new( " Could not deserialize response !" );
   }
 
-  if(exists($self->CallbackIdMap->{$response->Id}))
+  if ( exists( $self->CallbackIdMap->{ $response->Id } ) )
   {
-    $self->CallbackIdMap->{$response->Id}->($response);
-    delete $self->CallbackIdMap->{$response->Id};
+    $self->CallbackIdMap->{ $response->Id }->( $response );
+    delete $self->CallbackIdMap->{ $response->Id };
   }
   else
   {

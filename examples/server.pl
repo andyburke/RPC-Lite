@@ -2,7 +2,7 @@ use strict;
 
 use RPC::Lite::Server;
 
-use Error;
+#use Error;
 
 use BadPackage;
 
@@ -95,7 +95,8 @@ sub Broken
 {
   my ($server) = @_;
 
-  throw Error::Simple("the server. it crush.");
+  #throw Error::Simple("the server. it crush.");
+  return 0;
 }
 
 sub BadType

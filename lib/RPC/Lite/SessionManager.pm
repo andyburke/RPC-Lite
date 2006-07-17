@@ -2,8 +2,6 @@ package RPC::Lite::SessionManager;
 
 use strict;
 
-my @defaultSerializers = qw( JSON XML Null );
-
 sub Transports            { $_[0]->{transports}            = $_[1] if @_ > 1; $_[0]->{transports} }
 sub Sessions              { $_[0]->{sessions}              = $_[1] if @_ > 1; $_[0]->{sessions} }
 sub CurrentTransportIndex { $_[0]->{currentTransportIndex} = $_[1] if @_ > 1; $_[0]->{currentTransportIndex} }
@@ -18,6 +16,7 @@ sub new
   bless $self, $class;
 
   $self->Sessions( {} );
+  $self->Serializers( {} );
   $self->Transports( [] );
   $self->Serializers( [] );
   $self->CurrentTransportIndex( 0 );
@@ -25,7 +24,6 @@ sub new
   die( "Must specify at least one transport type!" ) if !exists( $args->{TransportSpecs} );
 
   $self->__InitializeTransports( $args->{TransportSpecs} );
-  $self->__InitializeSerializers( $args->{Serializers} );
 
   return $self;
 }
@@ -57,30 +55,41 @@ sub __InitializeTransports
   }
 }
 
-sub __InitializeSerializers
+sub __InitializeSerializer
 {
   my $self = shift;
-  my $serializers = shift;
+  my $serializer = shift;
+  my $serializerVersion = shift;
   
-  # default
-  if ( ref( $serializers ) ne 'ARRAY' )
+  # if we've already loaded this serializer, just return 1
+  return 1 if ( defined ( $self->Serializers->{ $serializer } ) );
+  
+  my $serializerClass = "RPC::Lite::Serializer::$serializer";
+
+  # try to load the serializer class
+  eval "use $serializerClass";
+  if ( $@ )
   {
-    $serializers = \@defaultSerializers;
+    warn( "Could not load serializer of type [$serializerClass]" );
+    return 0;
   }
 
-  foreach my $serializerType ( @{$serializers} )
+  # try to instantiate a serializer of this type
+  eval "$self->Serializers->{ $serializer } = $serializerClass->new();";
+  if ( $@ )
   {
-    my $serializerClass = "RPC::Lite::Serializer::$serializerType";
-
-    eval "use $serializerClass";
-    if ( $@ )
-    {
-      warn( "Could not load serializer of type [$serializerClass]" );
-      next;
-    }
-
-    push( @{ $self->Serializers }, $serializerClass->new() );
+    warn( "Could not create serializer object of type [$serializerClass]" );
+    return 0;
   }
+  
+  if ( !$self->Serializers->{ $serializer }->VersionSupported( $serializerVersion ) )
+  {
+    warn( "Serializer [$serializerClass] does not support version [$serializerVersion]" );
+    return 0;
+  }
+  
+  # if we got here we loaded that serializer
+  return 1;
 }
 
 sub GetNextReadySessionId
@@ -104,9 +113,7 @@ sub GetNextReadySessionId
 
       if ( !exists( $self->Sessions->{$clientId} ) )
       {
-
-        # FIXME how to determine serializer type?
-        $self->Sessions->{$clientId} = RPC::Lite::Session->new( $clientId, $transport, $self->Serializers, undef );
+        $self->Sessions->{$clientId} = RPC::Lite::Session->new( $clientId, $transport, $self, undef );
       }
       
       $self->CurrentTransportIndex( ( $transportIndex + 1 ) % $numTransports );

@@ -139,6 +139,7 @@ sub WriteRequestContent
   $content .= chr(0);
   my ($socket) = $self->ClientSelect->handles;
 
+  print "writing:\n$content\n\n";
   # FIXME need to check if $socket is kosher?
   $socket->syswrite($content) == length($content) or return undef;
 

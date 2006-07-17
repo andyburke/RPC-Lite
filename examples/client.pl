@@ -10,7 +10,7 @@ use BadPackage;
 my $client = RPC::Lite::Client->new(
                                      {
                                        Transport  => 'TCP:Host=localhost,Port=10000',
-                                       Serializer => 'XML',
+                                       Serializer => 'JSON',
                                      }
                                    );    
 

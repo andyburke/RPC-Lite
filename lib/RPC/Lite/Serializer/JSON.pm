@@ -20,12 +20,19 @@ sub new
   bless $self, $class;
 }
 
-sub CannotDeserialize
+sub VersionSupported
 {
   my $self = shift;
-  my $data = shift;
-  
-  return $data !~ /^\s*\{\s*/;
+  my $version = shift;
+
+  # FIXME make sure we support this serializer version
+  return 1;
+}
+
+sub GetVersion
+{
+  my $self = shift;
+  return $JSON::VERSION;
 }
 
 sub Serialize

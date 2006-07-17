@@ -21,12 +21,13 @@ sub new
   bless $self, $class;
 }
 
-sub CannotDeserialize
+sub VersionSupported
 {
   my $self = shift;
-  my $data = shift;
-  
-  return $data !~ /^\s*\<\s*/;
+  my $version = shift;
+
+  # FIXME make sure we support this version of serialization
+  return 1;
 }
 
 sub Serialize
