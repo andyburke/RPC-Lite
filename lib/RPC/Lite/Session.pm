@@ -83,6 +83,7 @@ sub GetRequest
       
       $self->SerializerType( $serializerType );
       $self->Established( 1 );
+      return;
     }
     else
     {
@@ -91,15 +92,6 @@ sub GetRequest
     }
   }
   
-  if ( !defined( $self->Serializer ) )
-  {
-    if ( !$self->DetectSerializer( $requestContent ) )
-    {
-      $self->Disconnected( 1 );
-      return undef;
-    }
-  }
-
   my $request = $self->SessionManager->Serializers->{ $self->SerializerType() }->Deserialize( $requestContent );
 
   return $request;

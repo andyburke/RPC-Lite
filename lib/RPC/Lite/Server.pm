@@ -28,40 +28,40 @@ RPC::Lite::Server - Lightweight RPC server framework.
 
 =head1 SYNOPSIS
 
-  use strict;
+use strict;
 
-  use RPC::Lite::Server;
+use RPC::Lite::Server;
 
-  my $server = ExampleServer->new(
-    {
-      Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
-      Serializers => [ 'JSON', 'XML' ],
-      Threaded    => 1,
-    }
-  );
+my $server = ExampleServer->new(
+{
+Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
+Serializers => [ 'JSON', 'XML' ],
+Threaded    => 1,
+}
+);
 
-  $server->Loop;
+$server->Loop;
 
-  ###########################
+###########################
 
-  package ExampleServer;
+package ExampleServer;
 
-  use base qw(RPC::Lite::Server);
+use base qw(RPC::Lite::Server);
 
-  sub Initialize
-  {
-    my $self = shift;
+sub Initialize
+{
+my $self = shift;
 
-    $self->AddSignature('GetTime=int:'); # optional signatures
-  }
+$self->AddSignature('GetTime=int:'); # optional signatures
+}
 
-  sub GetTime
-  {
-    return time();
-  }
+sub GetTime
+{
+return time();
+}
 
-  ...
- 
+...
+
 =head1 DESCRIPTION
 
 RPC::Lite::Server implements a very lightweight remote process
@@ -75,12 +75,12 @@ handling.
 =cut
 
 my %defaultMethods = (
-                       "$systemPrefix.Uptime"             => \&_Uptime,
-                       "$systemPrefix.RequestCount"       => \&_RequestCount,
-                       "$systemPrefix.SystemRequestCount" => \&_SystemRequestCount,
-                       "$systemPrefix.GetSignatures"      => \&_GetSignatures,
-                       "$systemPrefix.GetSignature"       => \&_GetSignature,
-                     );
+	       "$systemPrefix.Uptime"             => \&_Uptime,
+	       "$systemPrefix.RequestCount"       => \&_RequestCount,
+	       "$systemPrefix.SystemRequestCount" => \&_SystemRequestCount,
+	       "$systemPrefix.GetSignatures"      => \&_GetSignatures,
+	       "$systemPrefix.GetSignature"       => \&_GetSignature,
+	     );
 
 sub SessionManager { $_[0]->{sessionmanager} = $_[1] if @_ > 1; $_[0]->{sessionmanager} }
 sub StartTime      { $_[0]->{starttime}      = $_[1] if @_ > 1; $_[0]->{starttime} }
@@ -92,16 +92,16 @@ sub Signatures     { $_[0]->{signatures}     = $_[1] if @_ > 1; $_[0]->{signatur
 
 sub RequestCount
 {
-  lock( $_[0]->{requestcount} );
-  $_[0]->{requestcount} = $_[1] if @_ > 1;
-  return $_[0]->{requestcount};
+lock( $_[0]->{requestcount} );
+$_[0]->{requestcount} = $_[1] if @_ > 1;
+return $_[0]->{requestcount};
 }
 
 sub SystemRequestCount
 {
-  lock( $_[0]->{systemrequestcount} );
-  $_[0]->{systemrequestcount} = $_[1] if @_ > 1;
-  return $_[0]->{systemrequestcount};
+lock( $_[0]->{systemrequestcount} );
+$_[0]->{systemrequestcount} = $_[1] if @_ > 1;
+return $_[0]->{systemrequestcount};
 }
 
 sub __IncRequestCount       { $_[0]->__IncrementSharedField( 'requestcount' ) }
@@ -110,55 +110,55 @@ sub __IncSystemRequestCount { $_[0]->__IncrementSharedField( 'systemrequestcount
 # helper for atomic counters
 sub __IncrementSharedField
 {
-  my $self      = shift;
-  my $fieldName = shift;
+my $self      = shift;
+my $fieldName = shift;
 
-  lock( $self->{$fieldName} );
-  return ++$self->{$fieldName};
+lock( $self->{$fieldName} );
+return ++$self->{$fieldName};
 }
 
 sub new
 {
-  my $class = shift;
-  my $args  = shift;
+my $class = shift;
+my $args  = shift;
 
-  my $self = { requestcount => undef, systemrequestcount => undef };
-  bless $self, $class;
-  share( $self->{requestcount} );
-  share( $self->{systemrequestcount} );
+my $self = { requestcount => undef, systemrequestcount => undef };
+bless $self, $class;
+share( $self->{requestcount} );
+share( $self->{systemrequestcount} );
 
-  $self->StartTime( time() );    # no need to share; set once and copied to children
-  $self->RequestCount( 0 );
-  $self->SystemRequestCount( 0 );
+$self->StartTime( time() );    # no need to share; set once and copied to children
+$self->RequestCount( 0 );
+$self->SystemRequestCount( 0 );
 
-  $self->__InitializeSessionManager( $args->{Transports}, $args->{Serializers} );
+$self->__InitializeSessionManager( $args->{Transports}, $args->{Serializers} );
 
-  $self->Threaded( $args->{Threaded} );
-  $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
+$self->Threaded( $args->{Threaded} );
+$self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
 
-  $self->Signatures( {} );
+$self->Signatures( {} );
 
-  $self->Initialize( $args ) if ( $self->can( 'Initialize' ) );
+$self->Initialize( $args ) if ( $self->can( 'Initialize' ) );
 
-  return $self;
+return $self;
 }
 
 sub __InitializeSessionManager
 {
-  my $self           = shift;
-  my $transportSpecs = shift;
-  my $serializers    = shift;
+my $self           = shift;
+my $transportSpecs = shift;
+my $serializers    = shift;
 
-  my $sessionManager = RPC::Lite::SessionManager->new(
-                                                       {
-                                                         TransportSpecs => $transportSpecs,
-                                                         Serializers    => $serializers,
-                                                       }
-                                                     );
+my $sessionManager = RPC::Lite::SessionManager->new(
+					       {
+						 TransportSpecs => $transportSpecs,
+						 Serializers    => $serializers,
+					       }
+					     );
 
-  die( "Could not create SessionManager!" ) if !$sessionManager;
+die( "Could not create SessionManager!" ) if !$sessionManager;
 
-  $self->SessionManager( $sessionManager );
+$self->SessionManager( $sessionManager );
 }
 
 ############

@@ -75,10 +75,10 @@ sub __InitializeSerializer
   }
 
   # try to instantiate a serializer of this type
-  eval "$self->Serializers->{ $serializer } = $serializerClass->new();";
+  eval { $self->Serializers->{ $serializer } = $serializerClass->new(); };
   if ( $@ )
   {
-    warn( "Could not create serializer object of type [$serializerClass]" );
+    warn( "Could not create serializer object of type [$serializerClass]: $@" );
     return 0;
   }
   

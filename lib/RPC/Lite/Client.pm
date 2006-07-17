@@ -217,14 +217,9 @@ sub Connect
   
   return 1 if ( $self->Connected() );
 
-  print "Connecting...\n";
-    
   $self->Transport->Connect();
 
-  print $RPC::Lite::HANDSHAKEFORMATSTRING . "\n";
-  print $RPC::Lite::VERSION . "\n";
   my $handshakeContent = sprintf( $RPC::Lite::HANDSHAKEFORMATSTRING, $RPC::Lite::VERSION, $self->SerializerType(), $self->Serializer->GetVersion() );
-  print $handshakeContent . "\n";
   $self->Transport->WriteRequestContent( $handshakeContent );
   
   $self->Connected( 1 );

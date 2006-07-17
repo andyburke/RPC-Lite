@@ -30,6 +30,12 @@ sub VersionSupported
   return 1;
 }
 
+sub GetVersion
+{
+  my $self = shift;
+  return $XML::Simple::VERSION;
+}
+
 sub Serialize
 {
   my $self = shift;
