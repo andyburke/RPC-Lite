@@ -18,7 +18,7 @@ sub new
   $self->Sessions( {} );
   $self->Serializers( {} );
   $self->Transports( [] );
-  $self->Serializers( [] );
+  $self->Serializers( {} );
   $self->CurrentTransportIndex( 0 );
 
   die( "Must specify at least one transport type!" ) if !exists( $args->{TransportSpecs} );

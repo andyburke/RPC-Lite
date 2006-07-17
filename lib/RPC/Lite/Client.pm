@@ -2,6 +2,7 @@ package RPC::Lite::Client;
 
 use strict;
 
+use RPC::Lite;
 use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Error;
