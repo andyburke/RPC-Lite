@@ -42,7 +42,6 @@ sub GetRequest
   return undef if $self->Disconnected();
 
   my $requestContent = $self->Transport->ReadRequestContent( $self->ClientId );
-  print "Request:\n$requestContent\n\n";
   
   if ( !defined( $requestContent ) )
   {
