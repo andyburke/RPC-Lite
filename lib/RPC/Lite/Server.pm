@@ -33,11 +33,10 @@ use strict;
 use RPC::Lite::Server;
 
 my $server = ExampleServer->new(
-{
-Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
-Serializers => [ 'JSON', 'XML' ],
-Threaded    => 1,
-}
+  {
+    Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
+    Threaded    => 1,
+  }
 );
 
 $server->Loop;
@@ -50,14 +49,14 @@ use base qw(RPC::Lite::Server);
 
 sub Initialize
 {
-my $self = shift;
+  my $self = shift;
 
-$self->AddSignature('GetTime=int:'); # optional signatures
+  $self->AddSignature( 'GetTime=int:' ); # optional signatures
 }
 
 sub GetTime
 {
-return time();
+  return time();
 }
 
 ...
@@ -75,33 +74,33 @@ handling.
 =cut
 
 my %defaultMethods = (
-	       "$systemPrefix.Uptime"             => \&_Uptime,
-	       "$systemPrefix.RequestCount"       => \&_RequestCount,
-	       "$systemPrefix.SystemRequestCount" => \&_SystemRequestCount,
-	       "$systemPrefix.GetSignatures"      => \&_GetSignatures,
-	       "$systemPrefix.GetSignature"       => \&_GetSignature,
+                       "$systemPrefix.Uptime"             => \&_Uptime,
+                       "$systemPrefix.RequestCount"       => \&_RequestCount,
+                       "$systemPrefix.SystemRequestCount" => \&_SystemRequestCount,
+                       "$systemPrefix.GetSignatures"      => \&_GetSignatures,
+                       "$systemPrefix.GetSignature"       => \&_GetSignature,
 	     );
 
 sub SessionManager { $_[0]->{sessionmanager} = $_[1] if @_ > 1; $_[0]->{sessionmanager} }
 sub StartTime      { $_[0]->{starttime}      = $_[1] if @_ > 1; $_[0]->{starttime} }
 sub Threaded       { $_[0]->{threaded}       = $_[1] if @_ > 1; $_[0]->{threaded} }
 sub ThreadPool     { $_[0]->{threadpool}     = $_[1] if @_ > 1; $_[0]->{threadpool} }
-sub PoolJobs     { $_[0]->{pooljobs}     = $_[1] if @_ > 1; $_[0]->{pooljobs} }
+sub PoolJobs       { $_[0]->{pooljobs}       = $_[1] if @_ > 1; $_[0]->{pooljobs} }
 sub WorkerThreads  { $_[0]->{workerthreads}  = $_[1] if @_ > 1; $_[0]->{workerthreads} }
 sub Signatures     { $_[0]->{signatures}     = $_[1] if @_ > 1; $_[0]->{signatures} }
 
 sub RequestCount
 {
-lock( $_[0]->{requestcount} );
-$_[0]->{requestcount} = $_[1] if @_ > 1;
-return $_[0]->{requestcount};
+  lock( $_[0]->{requestcount} );
+  $_[0]->{requestcount} = $_[1] if @_ > 1;
+  return $_[0]->{requestcount};
 }
 
 sub SystemRequestCount
 {
-lock( $_[0]->{systemrequestcount} );
-$_[0]->{systemrequestcount} = $_[1] if @_ > 1;
-return $_[0]->{systemrequestcount};
+  lock( $_[0]->{systemrequestcount} );
+  $_[0]->{systemrequestcount} = $_[1] if @_ > 1;
+  return $_[0]->{systemrequestcount};
 }
 
 sub __IncRequestCount       { $_[0]->__IncrementSharedField( 'requestcount' ) }
@@ -110,61 +109,63 @@ sub __IncSystemRequestCount { $_[0]->__IncrementSharedField( 'systemrequestcount
 # helper for atomic counters
 sub __IncrementSharedField
 {
-my $self      = shift;
-my $fieldName = shift;
+  my $self      = shift;
+  my $fieldName = shift;
 
-lock( $self->{$fieldName} );
-return ++$self->{$fieldName};
+  lock( $self->{$fieldName} );
+  return ++$self->{$fieldName};
 }
 
 sub new
 {
-my $class = shift;
-my $args  = shift;
+  my $class = shift;
+  my $args  = shift;
 
-my $self = { requestcount => undef, systemrequestcount => undef };
-bless $self, $class;
-share( $self->{requestcount} );
-share( $self->{systemrequestcount} );
+  my $self = { requestcount => undef, systemrequestcount => undef };
+  bless $self, $class;
+  share( $self->{requestcount} );
+  share( $self->{systemrequestcount} );
 
-$self->StartTime( time() );    # no need to share; set once and copied to children
-$self->RequestCount( 0 );
-$self->SystemRequestCount( 0 );
+  $self->StartTime( time() );    # no need to share; set once and copied to children
+  $self->RequestCount( 0 );
+  $self->SystemRequestCount( 0 );
 
-$self->__InitializeSessionManager( $args->{Transports}, $args->{Serializers} );
+  $self->__InitializeSessionManager( $args->{Transports} );
 
-$self->Threaded( $args->{Threaded} );
-$self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
+  $self->Threaded( $args->{Threaded} );
+  $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
 
-$self->Signatures( {} );
+  $self->Signatures( {} );
 
-$self->Initialize( $args ) if ( $self->can( 'Initialize' ) );
+  $self->Initialize( $args ) if ( $self->can( 'Initialize' ) );
 
-return $self;
+  return $self;
 }
 
 sub __InitializeSessionManager
 {
-my $self           = shift;
-my $transportSpecs = shift;
-my $serializers    = shift;
+  my $self           = shift;
+  my $transportSpecs = shift;
 
-my $sessionManager = RPC::Lite::SessionManager->new(
-					       {
-						 TransportSpecs => $transportSpecs,
-						 Serializers    => $serializers,
-					       }
-					     );
+  my $sessionManager = RPC::Lite::SessionManager->new(
+						       {
+						         TransportSpecs => $transportSpecs,
+						       }
+						     );
 
-die( "Could not create SessionManager!" ) if !$sessionManager;
+  die( "Could not create SessionManager!" ) if !$sessionManager;
 
-$self->SessionManager( $sessionManager );
+  $self->SessionManager( $sessionManager );
 }
 
 ############
 # These are public methods that server authors may call.
 
-=item Loop
+=pod
+
+=over 12
+
+=item C<Loop>
 
 Loops, calling HandleRequest, and does not return.  Useful for a trivial server that doesn't need
 to do anything else in its event loop.  Transport subclasses should not override this as a server
@@ -185,7 +186,9 @@ sub Loop
   }
 }
 
-=item HandleRequest
+=pod
+
+=item C<HandleRequest>
 
 Handles a single request, dispatching it to the underlying RPC implementation class, and returns.
 
@@ -218,6 +221,12 @@ sub HandleRequest
     $session->Write( $result ) if defined( $result );
   }
 }
+
+=pod
+
+=item C<HandleResponses>
+
+=cut
 
 # pump the thread pool and write out responses to clients
 sub HandleResponses
@@ -274,13 +283,6 @@ sub __InitializeThreadPool
   }
 }
 
-=item FindMethod($method_name)
-
-Returns a coderef to the method C<$method_name> in the server's implementation package,
-or undef if it doesn't exist.
-
-=cut
-
 sub __FindMethod
 {
   my ( $self, $methodName ) = @_;
@@ -290,14 +292,6 @@ sub __FindMethod
 
   return $coderef;
 }
-
-=item DispatchRequest($request)
-
-Dispatches the RPC::Lite::Request C<$request> to the appropriate method in the
-implementation package.  Returns an RPC::Lite::Response object containing the
-return value from the method.
-
-=cut
 
 sub __DispatchRequest
 {
@@ -364,6 +358,12 @@ sub __DispatchRequest
 }
 
 #=============
+
+=pod
+
+=item C<AddSignature>
+
+=cut
 
 sub AddSignature
 {
@@ -439,5 +439,16 @@ sub _GetSignature
 
   return $self->Signatures->{$methodName}->AsString();
 }
+
+=pod
+
+=back
+
+=head1 AUTHORS
+
+Andrew Burke (aburke@bitflood.org)
+Jeremy Muhlich (jmuhlich@bitflood.org)
+
+=cut
 
 1;

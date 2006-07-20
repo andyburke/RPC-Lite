@@ -11,7 +11,6 @@ my $threaded = $ARGV[0] eq '-t' ? 1 : 0;
 my $server = TestServer->new(
   {
     Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
-    Serializers => ['JSON', 'XML'],
     Threaded    => $threaded,
   }
 );
