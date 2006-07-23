@@ -36,7 +36,7 @@ sub VersionSupported
 
   RPC::Lite is intended to be a lightweight, easy-to-use yet flexible
 and powerful RPC implementation.  It was inspired by the headaches of
-working with other heavier RPC APIs.
+working with other, heavier RPC APIs.
 
 =head1 EXAMPLES
 
@@ -63,7 +63,8 @@ working with other heavier RPC APIs.
   my $val1   = 1;
   my $val2   = 2;
   my $result = $client->Request( 'add', $val1, $val2 );
-
+  # $result == 3
+  
 =cut
 
 1;

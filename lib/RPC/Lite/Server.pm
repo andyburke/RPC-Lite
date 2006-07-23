@@ -28,48 +28,45 @@ RPC::Lite::Server - Lightweight RPC server framework.
 
 =head1 SYNOPSIS
 
-use strict;
+  use strict;
 
-use RPC::Lite::Server;
+  use RPC::Lite::Server;
 
-my $server = ExampleServer->new(
+  my $server = ExampleServer->new(
+    {
+      Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
+      Threaded    => 1,
+    }
+  );
+
+  $server->Loop;
+
+  ###########################
+
+  package ExampleServer;
+
+  use base qw(RPC::Lite::Server);
+
+  sub Initialize
   {
-    Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
-    Threaded    => 1,
+    my $self = shift;
+
+    $self->AddSignature( 'GetTime=int:' ); # optional signatures
   }
-);
 
-$server->Loop;
+  sub GetTime
+  {
+    return time();
+  }
 
-###########################
-
-package ExampleServer;
-
-use base qw(RPC::Lite::Server);
-
-sub Initialize
-{
-  my $self = shift;
-
-  $self->AddSignature( 'GetTime=int:' ); # optional signatures
-}
-
-sub GetTime
-{
-  return time();
-}
-
-...
+  ...
 
 =head1 DESCRIPTION
 
-RPC::Lite::Server implements a very lightweight remote process
+  RPC::Lite::Server implements a very lightweight remote process
 communications server framework.  It can use arbitrary Transport
 (RPC::Lite::Transport) and Serialization (RPC::Lite::Serializer)
-mechanisms.
-
-The overriding goal of RPC::Lite is simplicity and elegant error
-handling.
+mechanisms.  It supports optional method signatures and threading.
 
 =cut
 
@@ -79,7 +76,7 @@ my %defaultMethods = (
                        "$systemPrefix.SystemRequestCount" => \&_SystemRequestCount,
                        "$systemPrefix.GetSignatures"      => \&_GetSignatures,
                        "$systemPrefix.GetSignature"       => \&_GetSignature,
-	     );
+	                 );
 
 sub SessionManager { $_[0]->{sessionmanager} = $_[1] if @_ > 1; $_[0]->{sessionmanager} }
 sub StartTime      { $_[0]->{starttime}      = $_[1] if @_ > 1; $_[0]->{starttime} }
@@ -186,11 +183,15 @@ sub Loop
   }
 }
 
+
 =pod
 
 =item C<HandleRequest>
 
 Handles a single request, dispatching it to the underlying RPC implementation class, and returns.
+
+Instead of calling C<Loop> some servers may implement their own update loops,
+calling C<HandleRequest> repeatedly.
 
 =cut
 
@@ -224,7 +225,41 @@ sub HandleRequest
 
 =pod
 
+=item C<AddSignature>
+
+Adds a signature for the given method.  Signatures can be used to verify
+that clients and servers agree on method specifications.  However, they
+are optional because most RPC implementations are done with close
+coupling of server and client development where developers are unlikely
+to need verification of server/client agreement.
+
+See 'perldoc RPC::Lite::Signature' for details on the format for specifying
+signatures.
+
+=cut
+
+sub AddSignature
+{
+  my $self            = shift;
+  my $signatureString = shift;
+
+  my $signature = RPC::Lite::Signature->new( $signatureString );
+
+  if ( !$self->can( $signature->MethodName() ) )
+  {
+    warn( "Attempted to add a signature for a method [" . $signature->MethodName . "] we are not capable of!" );
+    return;
+  }
+
+  $self->Signatures->{ $signature->MethodName } = $signature;
+}
+
+=pod
+
 =item C<HandleResponses>
+
+When threading is enabled, this method looks for completed requests
+and returns them to the requesting client.
 
 =cut
 
@@ -355,30 +390,6 @@ sub __DispatchRequest
   __Debug( "returning:\n\n" );
   __Debug(  Dumper $response ); 
   return $response;
-}
-
-#=============
-
-=pod
-
-=item C<AddSignature>
-
-=cut
-
-sub AddSignature
-{
-  my $self            = shift;
-  my $signatureString = shift;
-
-  my $signature = RPC::Lite::Signature->new( $signatureString );
-
-  if ( !$self->can( $signature->MethodName() ) )
-  {
-    warn( "Attempted to add a signature for a method [" . $signature->MethodName . "] we are not capable of!" );
-    return;
-  }
-
-  $self->Signatures->{ $signature->MethodName } = $signature;
 }
 
 #=============
