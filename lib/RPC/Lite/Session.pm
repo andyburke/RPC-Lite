@@ -4,6 +4,31 @@ use strict;
 
 use RPC::Lite;
 
+=pod
+
+=head1 NAME
+
+RPC::Lite::Session - Manages a client session.  Used internally.
+
+=head1 SYNOPSIS
+
+  use RPC::Lite::Session;
+
+  my $session = RPC::Lite::Session->new( $uniqueClientId, $transport, $sessionManager, $extraInfoHash );
+
+  my $request = $session->GetRequest();
+
+=head1 DESCRIPTION
+
+RPC::Lite::Session implements a session for managing clients which are connected
+to an RPC::Lite::Server.  Sessions handle receiving requests and sending responses
+to clients.  Sessions store information about the connection so that
+multiple transports and serializers can be supported by a single server.
+
+=over 12
+
+=cut
+
 sub StartTime      { $_[0]->{starttime}      = $_[1] if @_ > 1; $_[0]->{starttime} }
 sub ClientId       { $_[0]->{clientid}       = $_[1] if @_ > 1; $_[0]->{clientid} }
 sub SessionManager { $_[0]->{sessionmanager} = $_[1] if @_ > 1; $_[0]->{sessionmanager} }
@@ -34,6 +59,15 @@ sub new
 
   return $self;
 }
+
+=pod
+
+=item GetRequest()
+
+Returns and RPC::Lite::Request object or undef if there is an error (such
+as the client being disconnected).
+
+=cut
 
 sub GetRequest
 {
@@ -95,6 +129,15 @@ sub GetRequest
 
   return $request;
 }
+
+=pod
+
+=item Write( $data )
+
+Serializes (using this particular client's serializer preference) and writes
+the data referenced by $data to the client.
+
+=cut
 
 sub Write
 {

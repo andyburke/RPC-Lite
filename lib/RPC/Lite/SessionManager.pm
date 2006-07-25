@@ -2,6 +2,36 @@ package RPC::Lite::SessionManager;
 
 use strict;
 
+=pod
+
+=head1 NAME
+
+RPC::Lite::SessionManager - Manages all sessions for an RPC::Lite::Server.
+
+=head1 SYNOPSIS
+
+  use RPC::Lite::SessionManager;
+
+  my $sessionManager = RPC::Lite::SessionManager->new(
+	                       {
+                           TransportSpecs =>
+                             [
+                               'TCP:ListenPort=10000,LocalAddr=localhost',
+                               ...
+                             ],
+                         }
+                       );
+
+=head1 DESCRIPTION
+
+RPC::Lite::SessionManager implements a simple session manager for use by RPC::Lite::Server.
+The SessionManager handles creating sessions and returning sessions to the server that
+are ready to have requests serviced.
+
+=over 12
+
+=cut
+
 sub Transports            { $_[0]->{transports}            = $_[1] if @_ > 1; $_[0]->{transports} }
 sub Sessions              { $_[0]->{sessions}              = $_[1] if @_ > 1; $_[0]->{sessions} }
 sub CurrentTransportIndex { $_[0]->{currentTransportIndex} = $_[1] if @_ > 1; $_[0]->{currentTransportIndex} }
@@ -92,6 +122,17 @@ sub __InitializeSerializer
   return 1;
 }
 
+=pod
+
+=item GetNextReadySessionId
+
+Returns the unique id of the next session that is ready to have a request serviced.  If
+there are no sessions waiting to be serviced, returns undef.
+
+This method also reaps any disconnected sessions.
+
+=cut
+
 sub GetNextReadySessionId
 {
   my $self = shift;
@@ -125,6 +166,15 @@ sub GetNextReadySessionId
 
   return undef;
 }
+
+=pod
+
+=item GetSession( $sessionId )
+
+Returns the session whose id matches C<$sessionId>.  If no session exists with such an id,
+returns undef.
+
+=cut
 
 sub GetSession
 {

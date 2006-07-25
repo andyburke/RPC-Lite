@@ -36,8 +36,7 @@ communications client framework.  It can use arbitrary Transport
 (RPC::Lite::Transport) and Serialization (RPC::Lite::Serializer)
 mechanisms.
 
-The overriding goal of RPC::Lite is simplicity and elegant error
-handling.
+=over 12
 
 =cut
 
@@ -120,11 +119,35 @@ sub __InitializeTransport
 ############
 # These are public methods
 
-# FIXME perldoc these
+=pod
+
+=item Connect()
+
+Explicitly connects to the server.  If this method is not called, the client will
+attempt to automatically connect when the first request is sent.
+
+=cut
+
+sub Connect
+{
+  my $self = shift;
+  
+  return 1 if ( $self->Connected() );
+
+  $self->Transport->Connect();
+
+  my $handshakeContent = sprintf( $RPC::Lite::HANDSHAKEFORMATSTRING, $RPC::Lite::VERSION, $self->SerializerType(), $self->Serializer->GetVersion() );
+  $self->Transport->WriteRequestContent( $handshakeContent );
+  
+  $self->Connected( 1 );
+  return 1;
+}
+
+=pod
 
 =item Request($methodName[, param[, ...]])
 
-Sends a request to the server.  Returns a native object.
+Sends a request to the server.  Returns a native object that is the result of the request.
 
 =cut
 
@@ -167,6 +190,8 @@ sub Request
   return $response->Result;
 }
 
+=pod
+
 =item AsyncRequest($callBack, $methodName[, param[, ...]])
 
 Sends an asynchronous request to the server.  Takes a callback code reference.
@@ -184,6 +209,8 @@ sub AsyncRequest
   $self->CallbackIdMap->{$requestId} = $callBack;
 }
 
+=pod
+
 =item RequestResponse($methodName[, param[, ...]])
 
 Sends a request to the server.  Returns an RPC::Lite::Response object.
@@ -199,6 +226,8 @@ sub RequestResponse
   return $self->__GetResponse();
 }
 
+=pod
+
 =item Notify($methodName[, param[, ...]])
 
 Sends a notification to the server, expects no response.
@@ -209,21 +238,6 @@ sub Notify
 {
   my $self = shift;
   $self->__SendRequest( RPC::Lite::Notification->new( shift, \@_ ) );    # method and params arrayref
-}
-
-sub Connect
-{
-  my $self = shift;
-  
-  return 1 if ( $self->Connected() );
-
-  $self->Transport->Connect();
-
-  my $handshakeContent = sprintf( $RPC::Lite::HANDSHAKEFORMATSTRING, $RPC::Lite::VERSION, $self->SerializerType(), $self->Serializer->GetVersion() );
-  $self->Transport->WriteRequestContent( $handshakeContent );
-  
-  $self->Connected( 1 );
-  return 1;
 }
 
 # FIXME sub NotifyResponse, for trapping local transport errors cleanly?

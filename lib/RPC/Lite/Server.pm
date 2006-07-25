@@ -457,8 +457,8 @@ sub _GetSignature
 
 =head1 AUTHORS
 
-Andrew Burke (aburke@bitflood.org)
-Jeremy Muhlich (jmuhlich@bitflood.org)
+  Andrew Burke (aburke@bitflood.org)
+  Jeremy Muhlich (jmuhlich@bitflood.org)
 
 =cut
 
