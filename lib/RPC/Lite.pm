@@ -4,7 +4,7 @@ use strict;
 
 # documentation/placeholder package
 
-our $VERSION = '0.1.0';
+our $VERSION = '0.10';
 our $HANDSHAKEFORMATSTRING = 'RPC-Lite %s / %s %s';
 
 use RPC::Lite::Client;
@@ -29,12 +29,11 @@ sub VersionSupported
 
 =head1 NAME
 
-  RPC::Lite - A lightweight yet flexible framework for remote process
-              communication.
+RPC::Lite - A lightweight yet flexible framework for remote process communication.
 
 =head1 DESCRIPTION
 
-  RPC::Lite is intended to be a lightweight, easy-to-use yet flexible
+RPC::Lite is intended to be a lightweight, easy-to-use yet flexible
 and powerful RPC implementation.  It was inspired by the headaches of
 working with other, heavier RPC APIs.
 

@@ -1,4 +1,9 @@
-v0.0.4
-------
+Change log for Perl extension RPC::Lite
+
+0.04    ???
+----
 - strip termination characters from data read by the TCP transport
 
+0.10    2006-07-17
+----
+- ???
