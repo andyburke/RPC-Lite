@@ -194,7 +194,11 @@ sub Request
 
 =item AsyncRequest($callBack, $methodName[, param[, ...]])
 
-Sends an asynchronous request to the server.  Takes a callback code reference.
+Sends an asynchronous request to the server.  Takes a callback code
+reference.  After calling this, you'll probably want to call
+HandleResponse in a loop to check for a response from the server, at
+which point your callback will be executed and passed the result
+value.
 
 =cut
 
@@ -204,8 +208,8 @@ sub AsyncRequest
   my $callBack   = shift;
   my $methodName = shift;
 
-  # SendRequest returns the Id the given request was assigned
-  my $requestId = $self->SendRequest( $methodName, @_ );
+  # __SendRequest returns the Id the given request was assigned
+  my $requestId = $self->__SendRequest( RPC::Lite::Request->new( $methodName, \@_ ) );
   $self->CallbackIdMap->{$requestId} = $callBack;
 }
 
@@ -242,6 +246,29 @@ sub Notify
 
 # FIXME sub NotifyResponse, for trapping local transport errors cleanly?
 
+
+=pod
+
+=item HandleResponse([$timeout])
+
+Checks for a response from the server.  Useful mostly in conjunction
+with AsyncRequest.  You can pass a timeout, or the Transport's default
+timeout will be used.  Returns an Error object if there was an error,
+otherwise returns undef.
+
+=cut
+
+sub HandleResponse
+{
+  my $self       = shift;
+  my $timeout    = shift;
+
+  return $self->__GetResponse($timeout);
+}
+
+
+
+
 ##############
 # The following are private methods.
 
@@ -264,7 +291,7 @@ sub __GetResponse
 
   my $responseContent = $self->Transport->ReadResponseContent( $timeout );
 
-  if ( !length( $responseContent ) )
+  if ( !defined $responseContent or !length $responseContent )
   {
     if ( $timeout or $self->Transport->Timeout )
     {

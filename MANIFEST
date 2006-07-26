@@ -8,7 +8,8 @@ examples/client.pl
 examples/client_fast.pl
 examples/client_slow.pl
 examples/server.pl
-t/RPC-Lite.t
+t/00_basic.t
+t/unthreaded.t
 lib/RPC/Lite.pm
 lib/RPC/Lite/Client.pm
 lib/RPC/Lite/Error.pm

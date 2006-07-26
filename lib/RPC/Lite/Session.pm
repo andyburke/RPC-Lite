@@ -76,7 +76,7 @@ sub GetRequest
   return undef if $self->Disconnected();
 
   my $requestContent = $self->Transport->ReadRequestContent( $self->ClientId );
-  
+
   if ( !defined( $requestContent ) )
   {
     $self->Disconnected( 1 );
@@ -89,34 +89,33 @@ sub GetRequest
   if ( !$self->Established() )
   {
     chomp $requestContent;
-    
+
     # handshake string examples:
     #
     #  RPC-Lite 1.0 / JSON 1.1
     #  RPC-Lite 2.2 / XML 3.2
-    if ( $requestContent =~ /^RPC-Lite (.*?) \/ (.*?) (.*?)$/ )
+    if ( $requestContent =~ s|^RPC-Lite (.*?) / (.*?) (.*?)\x00|| )
     {
       my $rpcLiteVersion = $1;
       my $serializerType = $2;
       my $serializerVersion = $3;
-      
+
       # FIXME return some kind of error to the client about why it's being dropped?
-      
+
       if ( !RPC::Lite::VersionSupported( $rpcLiteVersion ) )
       {
         $self->Disconnected( 1 );
         return;
       }
-      
+
       if ( !$self->SessionManager->__InitializeSerializer( $serializerType, $serializerVersion ) )
       {
         $self->Disconnected( 1 );
         return;
       }
-      
+
       $self->SerializerType( $serializerType );
       $self->Established( 1 );
-      return;
     }
     else
     {
@@ -124,7 +123,7 @@ sub GetRequest
       return;
     }
   }
-  
+
   my $request = $self->SessionManager->Serializers->{ $self->SerializerType() }->Deserialize( $requestContent );
 
   return $request;

@@ -33,7 +33,7 @@ sub VersionSupported
 sub GetVersion
 {
   my $self = shift;
-  return $XML::Simple::VERSION;
+  return $XML::Simple::VERSION; # FIXME should be *this* module's version, not XML::Simple's.  we may require a minimum version of XML::Simple in the use() of course.
 }
 
 sub Serialize
@@ -110,7 +110,12 @@ sub Serialize
     # unbless shit? 
   }
 
-  my $data = XMLout( $object, RootName => 'rpc-lite' );
+  my $data;
+  {
+    # work around uninitialized value warning in XML::Simple (keeps test output clean)
+    local $^W = 0;
+    $data = XMLout( $object, RootName => 'rpc-lite' );
+  }
 
   $self->_Debug('Serializing', Dumper($object), $data) if($DEBUG);
 

@@ -103,7 +103,10 @@ sub IsClient
 sub ReadResponseContent
 {
   my $self    = shift;
-  my $timeout = @_ ? shift: $self->Timeout;    # defaults to undef if not set by user (see new())
+  my $timeout = shift;
+
+  # FIXME this logic still won't allow undef (infinite timeout) to be passed explicitly
+  defined $timeout or $timeout = $self->Timeout;    # defaults to undef if not set by user (see new())
 
   return undef if !$self->IsClient;
   return undef if !$self->IsConnected;
