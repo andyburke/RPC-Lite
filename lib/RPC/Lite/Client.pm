@@ -10,6 +10,8 @@ use RPC::Lite::Notification;
 
 use Data::Dumper;
 
+our $DEFAULTSERIALIZER = 'JSON';
+
 =pod
 
 =head1 NAME
@@ -23,7 +25,8 @@ RPC::Lite::Client - Lightweight RPC client framework.
   my $client = RPC::Lite::Client->new(
     {
       Transport  => 'TCP:Host=blah.foo.com,Port=10000',
-      Serializer => 'JSON',
+      Serializer => 'JSON', # JSON is actually the default,
+                            # this argument is unnecessary
     }
   );
 
@@ -36,7 +39,7 @@ communications client framework.  It can use arbitrary Transport
 (RPC::Lite::Transport) and Serialization (RPC::Lite::Serializer)
 mechanisms.
 
-=over 12
+=over 4
 
 =cut
 
@@ -46,6 +49,47 @@ sub Transport      { $_[0]->{transport}      = $_[1] if @_ > 1; $_[0]->{transpor
 sub IdCounter      { $_[0]->{idcounter}      = $_[1] if @_ > 1; $_[0]->{idcounter} }
 sub CallbackIdMap  { $_[0]->{callbackidmap}  = $_[1] if @_ > 1; $_[0]->{callbackidmap} }
 sub Connected      { $_[0]->{connected}  = $_[1] if @_ > 1; $_[0]->{connected} }
+
+=pod
+
+=item new
+
+Creates a new RPC::Lite::Client object.  Takes a hash reference of arguments.
+
+Arguments:
+
+=over 4
+
+=item Serializer
+
+A string specifying the RPC::Lite::Serializer to use when communicating
+with the server.  See 'perldoc RPC::Lite::Serializers' for a list of
+supported serializers.
+
+=item Transport
+
+A string specifying the transport layer to use to connect to the server.
+The string is of the format:
+
+  <transport type>[:[<argument>=<value>[,<argument>=<value>...]]]
+  
+Eg, for a TCP connection to the host 'blah.foo.com' on port 10000:
+
+  TCP:Host=blah.foo.com,Port=10000
+  
+See 'perldoc RPC::Lite::Transports' for a list of supported transport
+mechanisms.
+
+=item ManualConnect
+
+A boolean value indicating whether or not you wish to connect manually,
+rather than at object instantiation.  If set to true, you are required
+to call Connect() on the client object before attempting to make
+requests.
+
+=back
+
+=cut
 
 sub new
 {
@@ -65,6 +109,15 @@ sub new
 
   $self->Initialize( $args ) if ( $self->can( 'Initialize' ) );
 
+  if ( !$args->{ManualConnect} )
+  {
+    if ( !$self->Connect() )
+    {
+      print "Could not connect to server!\n";
+      exit 1;
+    }
+  }
+  
   return $self;
 }
 
@@ -72,6 +125,8 @@ sub __InitializeSerializer
 {
   my $self           = shift;
   my $serializerType = shift;
+
+  $serializerType = $DEFAULTSERIALIZER if ( !length( $serializerType ) );
 
   my $serializerClass = 'RPC::Lite::Serializer::' . $serializerType;
 
@@ -134,7 +189,7 @@ sub Connect
   
   return 1 if ( $self->Connected() );
 
-  $self->Transport->Connect();
+  return 0 if ( !$self->Transport->Connect() );
 
   my $handshakeContent = sprintf( $RPC::Lite::HANDSHAKEFORMATSTRING, $RPC::Lite::VERSION, $self->SerializerType(), $self->Serializer->GetVersion() );
   $self->Transport->WriteRequestContent( $handshakeContent );
@@ -266,9 +321,6 @@ sub HandleResponse
   return $self->__GetResponse($timeout);
 }
 
-
-
-
 ##############
 # The following are private methods.
 
@@ -276,7 +328,7 @@ sub __SendRequest
 {
   my ( $self, $request ) = @_;    # request could be a Notification
 
-  return -1 if ( !$self->Connect() );
+  return -1 if ( !$self->Connected() );
 
   my $id = $self->IdCounter( $self->IdCounter + 1 );
   $request->Id( $id );

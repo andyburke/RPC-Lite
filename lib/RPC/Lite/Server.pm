@@ -127,8 +127,6 @@ sub new
   $self->RequestCount( 0 );
   $self->SystemRequestCount( 0 );
 
-  $self->__InitializeSessionManager( $args->{Transports} );
-
   $self->Threaded( $args->{Threaded} );
   $self->WorkerThreads( defined( $args->{WorkerThreads} ) ? $args->{WorkerThreads} : $workerThreadsDefault );
 
@@ -136,6 +134,11 @@ sub new
 
   $self->Initialize( $args ) if ( $self->can( 'Initialize' ) );
 
+  $self->__InitializeThreadPool();
+  $self->__InitializeSessionManager( $args->{Transports} );
+  
+  $self->SessionManager->StartListening();
+  
   return $self;
 }
 
@@ -153,6 +156,32 @@ sub __InitializeSessionManager
   die( "Could not create SessionManager!" ) if !$sessionManager;
 
   $self->SessionManager( $sessionManager );
+}
+
+sub __InitializeThreadPool
+{
+  my $self = shift;
+
+  return if !$self->Threaded or $self->ThreadPool;
+
+  eval "use Thread::Pool";
+  if ( $@ )
+  {
+    warn "Disabling threading for lack of Thread::Pool module.";
+    $self->Threaded( 0 );
+  }
+  else
+  {
+    __Debug( 'threading enabled' );
+    my $pool = Thread::Pool->new(
+                                  {
+                                    'workers' => $self->WorkerThreads,
+                                    'do'      => sub { my $result = $self->__DispatchRequest( @_ ); return $result; },
+                                  }
+                                );
+    $self->ThreadPool( $pool );
+    $self->PoolJobs( {} );
+  }
 }
 
 ############
@@ -173,8 +202,6 @@ process may skip Loop, calling HandleRequest directly.
 sub Loop
 {
   my $self = shift;
-
-  $self->__InitializeThreadPool();
 
   while ( 1 )
   {
@@ -291,32 +318,6 @@ sub HandleResponses
 
 ##############
 # The following are private methods.
-
-sub __InitializeThreadPool
-{
-  my $self = shift;
-
-  return if !$self->Threaded or $self->ThreadPool;
-
-  eval "use Thread::Pool";
-  if ( $@ )
-  {
-    warn "Disabling threading for lack of Thread::Pool module.";
-    $self->Threaded( 0 );
-  }
-  else
-  {
-    __Debug( 'threading enabled' );
-    my $pool = Thread::Pool->new(
-                                  {
-                                    'workers' => $self->WorkerThreads,
-                                    'do'      => sub { my $result = $self->__DispatchRequest( @_ ); return $result; },
-                                  }
-                                );
-    $self->ThreadPool( $pool );
-    $self->PoolJobs( {} );
-  }
-}
 
 sub __FindMethod
 {

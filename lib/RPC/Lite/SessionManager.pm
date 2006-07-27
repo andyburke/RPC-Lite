@@ -80,7 +80,7 @@ sub __InitializeTransports
     {
       die( "Could not construct transport: $transportClass" );
     }
-
+    
     push( @{ $self->Transports }, $transport );
   }
 }
@@ -121,6 +121,28 @@ sub __InitializeSerializer
   # if we got here we loaded that serializer
   return 1;
 }
+
+=pod
+
+=item StartListening()
+
+Start listening on all transport layers.
+
+=cut
+
+sub StartListening
+{
+  my $self = shift;
+  
+  foreach my $transport ( @{ $self->Transports() } )
+  {
+    if ( !$transport->Listen() )
+    {
+      die( "Could not start listening with transport: " . ref( $transport ) );
+    }
+  }
+}
+    
 
 =pod
 
