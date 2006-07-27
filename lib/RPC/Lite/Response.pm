@@ -1,8 +1,6 @@
 package RPC::Lite::Response;
 
 use strict;
-use Carp;
-use Data::Dumper;
 
 sub new
 {

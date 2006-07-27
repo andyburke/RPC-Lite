@@ -7,10 +7,6 @@ use RPC::Lite::Response;
 use RPC::Lite::Notification;
 use RPC::Lite::Error;
 
-use JSON;
-
-use Data::Dumper;
-
 our $DEBUG = $ENV{DEBUG_SERIALIZER};
 
 sub new

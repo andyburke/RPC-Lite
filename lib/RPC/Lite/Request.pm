@@ -2,7 +2,6 @@ package RPC::Lite::Request;
 
 use strict;
 use RPC::Lite::Notification;
-use Carp;
 
 sub new
 {

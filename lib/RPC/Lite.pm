@@ -63,6 +63,15 @@ working with other, heavier RPC APIs.
   my $val2   = 2;
   my $result = $client->Request( 'add', $val1, $val2 );
   # $result == 3
+
+=head1 AUTHORS
+
+  Andrew Burke (aburke@bitflood.org)
+  Jeremy Muhlich (jmuhlich@bitflood.org)
+
+=head1 SEE ALSO
+
+RPC::Lite::Client, RPC::Lite::Server
   
 =cut
 

@@ -1,8 +1,6 @@
 package RPC::Lite::Signature;
 
 use strict;
-use Carp;
-use Data::Dumper;
 
 =pod
 

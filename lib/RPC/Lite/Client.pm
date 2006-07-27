@@ -52,11 +52,13 @@ sub Connected      { $_[0]->{connected}  = $_[1] if @_ > 1; $_[0]->{connected} }
 
 =pod
 
-=item new
+=item C<new>
 
 Creates a new RPC::Lite::Client object.  Takes a hash reference of arguments.
 
-Arguments:
+=over 4
+
+=item Supported Arguments
 
 =over 4
 
@@ -86,6 +88,8 @@ A boolean value indicating whether or not you wish to connect manually,
 rather than at object instantiation.  If set to true, you are required
 to call Connect() on the client object before attempting to make
 requests.
+
+=back
 
 =back
 
@@ -176,7 +180,7 @@ sub __InitializeTransport
 
 =pod
 
-=item Connect()
+=item C<Connect()>
 
 Explicitly connects to the server.  If this method is not called, the client will
 attempt to automatically connect when the first request is sent.
@@ -200,7 +204,7 @@ sub Connect
 
 =pod
 
-=item Request($methodName[, param[, ...]])
+=item C<Request($methodName[, param[, ...]])>
 
 Sends a request to the server.  Returns a native object that is the result of the request.
 
@@ -247,7 +251,7 @@ sub Request
 
 =pod
 
-=item AsyncRequest($callBack, $methodName[, param[, ...]])
+=item C<AsyncRequest($callBack, $methodName[, param[, ...]])>
 
 Sends an asynchronous request to the server.  Takes a callback code
 reference.  After calling this, you'll probably want to call
@@ -270,7 +274,7 @@ sub AsyncRequest
 
 =pod
 
-=item RequestResponse($methodName[, param[, ...]])
+=item C<RequestResponse($methodName[, param[, ...]])>
 
 Sends a request to the server.  Returns an RPC::Lite::Response object.
 
@@ -287,9 +291,10 @@ sub RequestResponse
 
 =pod
 
-=item Notify($methodName[, param[, ...]])
+=item C<Notify($methodName[, param[, ...]])>
 
-Sends a notification to the server, expects no response.
+Sends a 'notification' to the server.  That is, it makes a request,
+but expects no response.
 
 =cut
 
@@ -304,7 +309,7 @@ sub Notify
 
 =pod
 
-=item HandleResponse([$timeout])
+=item C<HandleResponse([$timeout])>
 
 Checks for a response from the server.  Useful mostly in conjunction
 with AsyncRequest.  You can pass a timeout, or the Transport's default

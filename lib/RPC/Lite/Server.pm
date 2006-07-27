@@ -113,6 +113,49 @@ sub __IncrementSharedField
   return ++$self->{$fieldName};
 }
 
+=pod
+
+=over 4
+
+=item C<new>
+
+Creates a new RPC::Lite::Server object.  Takes a hash reference to specify
+arguments.
+
+=over 4
+
+=item Supported Arguments
+
+=over 4
+
+=item Transports
+
+An array reference to transport specifications which will determine which
+transport layers are initialized by the Session Manager.
+
+=item Threaded
+
+Boolean value indicating whether or not the server should operate in a
+threaded mode where requests are handed to worker threads for completion.
+
+This functionality depends on having the Thread::Pool module installed.
+
+This functionality can also seriously impact the way a server must be
+implemented to handle concurrency, etc.  It is not recommended that
+this option be used unless you understand the necessary precautions
+that must be taken when implementing threaded applications.
+
+=item WortherThreads
+
+Specifies the number of worker threads to use when threading is enabled.
+Defaults to 10.
+
+=back
+
+=back
+
+=cut
+
 sub new
 {
   my $class = shift;
@@ -188,8 +231,6 @@ sub __InitializeThreadPool
 # These are public methods that server authors may call.
 
 =pod
-
-=over 12
 
 =item C<Loop>
 

@@ -3,7 +3,6 @@ package RPC::Lite::Error;
 use strict;
 use base qw(RPC::Lite::Response);
 
-
 sub new
 {
   my ($class, $data) = @_;
