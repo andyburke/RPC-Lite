@@ -1,4 +1,4 @@
-RPC-Lite version 0.01
+RPC-Lite version 0.10
 =====================
 
 The README is used to introduce the module and provide instructions on
@@ -31,7 +31,8 @@ COPYRIGHT AND LICENCE
 
 Put the correct copyright and licence information here.
 
-Copyright (C) 2006 by U-PLASTIK\jmuhlich
+Copyright (C) 2006 by Andrew Burke (aburke@bitflood.org)
+Copyright (C) 2006 by Jeremy Muhlich (jmuhlich@bitflood.org)
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.5 or,
