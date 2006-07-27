@@ -1,11 +1,12 @@
 use strict;
 
-use Test::More tests => 1;
+use Test::More tests => 8;
 
 use RPC::Lite;
 
+my $gotResponse; 
 
-# FIXME should probe ports to find an open one. won't be totally race-proof but that shouldn't really be a problem. we could add a constructor param to allow passing in the listen socket... that's probably best.
+# FIXME should probe ports to find an open one. will not be totally race-proof but that shouldn't really be a problem. we could add a constructor param to allow passing in the listen socket... that's probably best.
 my $server = TestServer->new(
   {
     Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost,Timeout=0.1' ],
@@ -19,15 +20,58 @@ my $client = RPC::Lite::Client->new(
   }
 );
 
-my $done;
-$client->AsyncRequest(sub { is($_[0]->Result, 5); $done = 1 }, 'add', 2, 3);
 
-for (my $i = 0; $i < 10 and !$done; $i++)
+# test calling add
+$client->AsyncRequest(sub { is($_[0]->Result, 5, 'method call'); $gotResponse = 1 }, 'add', 2, 3);
+
+Pump();
+
+# test signature matching
+my $signature1 = RPC::Lite::Signature->new( 'add=int:int,int' );
+my $signature2 = RPC::Lite::Signature->new( 'add = int : int, int' );
+
+ok( $signature1->Matches( $signature2 ), 'signature object matching' );
+ok( $signature1->Matches( 'add=int:int,int' ), 'signature string matching' );
+
+# test getting signatures
+$client->AsyncRequest(sub { ok( $signature1->Matches( $_[0]->Result ), 'Check system.GetSignature' ); $gotResponse = 1 }, 'system.GetSignature', 'add' );
+
+Pump();
+
+# guarantee an uptime of at least 1 second
+sleep(1);
+
+# test getting system.Uptime
+$client->AsyncRequest( sub { ok( $_[0]->Result > 0, 'Check system.Uptime' ); $gotResponse = 1 }, 'system.Uptime' );
+
+Pump();
+
+# test system.GetSignatures
+$client->AsyncRequest( sub { ok( $_[0]->Result , 'Check system.GetSignatures' ); $gotResponse = 1; }, 'system.GetSignatures' );
+
+Pump();
+
+# test system.RequestCount
+$client->AsyncRequest( sub { ok( $_[0]->Result == 1, 'Check system.RequestCount' ); $gotResponse = 1; }, 'system.RequestCount' );
+
+Pump();
+
+# test system.SystemRequestCount
+$client->AsyncRequest( sub { ok( $_[0]->Result == 4, 'Check system.SystemRequestCount' ); $gotResponse = 1; }, 'system.SystemRequestCount' );
+
+Pump();
+
+
+
+sub Pump
 {
-  $server->HandleRequest;
-  $client->HandleResponse;
+  $gotResponse = 0;
+  for (my $i = 0; $i < 10 and !$gotResponse; ++$i) 
+  {        
+    $server->HandleRequest; 
+    $client->HandleResponse; 
+  }
 }
-
 
 ###########################
 
