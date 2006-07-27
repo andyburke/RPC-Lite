@@ -374,17 +374,6 @@ sub __DispatchRequest
 {
   my ( $self, $sessionId, $request ) = @_;
 
-  ###########################################################
-  ## keep track of how many method calls we've handled...
-  if ( $request->Method !~ /^$systemPrefix\./ )
-  {
-    $self->__IncRequestCount();
-  }
-  else
-  {
-    $self->__IncSystemRequestCount();
-  }
-
   my $method = $self->__FindMethod( $request->Method );
   my $response = undef;
 
@@ -431,6 +420,18 @@ sub __DispatchRequest
   use Data::Dumper;
   __Debug( "returning:\n\n" );
   __Debug(  Dumper $response ); 
+
+  ###########################################################
+  ## keep track of how many method calls we've handled...
+  if ( $request->Method !~ /^$systemPrefix\./ )
+  {
+    $self->__IncRequestCount();
+  }
+  else
+  {
+    $self->__IncSystemRequestCount();
+  }
+
   return $response;
 }
 
