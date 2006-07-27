@@ -1,6 +1,7 @@
 package RPC::Lite::Transport::TCP;
 
 use strict;
+use base qw(RPC::Lite::Transport);
 
 use threads;
 use threads::shared;
@@ -137,15 +138,17 @@ sub WriteRequestContent
   my $content = shift;
 
   return undef if !$self->IsClient;
+  return undef if !$self->IsConnected;
 
-  $self->Connect or return undef;
   $content .= chr(0);
   my ($socket) = $self->ClientSelect->handles;
 
   # FIXME need to check if $socket is kosher?
-  $socket->syswrite($content) == length($content) or return undef;
+  my $bytesWritten = $socket->syswrite($content);
+  
+  $bytesWritten == length($content) or return undef;
 
-  return 1;
+  return $bytesWritten;
 }
 
 sub Connect
@@ -163,14 +166,11 @@ sub Connect
                                       PeerPort => $self->Port,
                                       Blocking => 1,
                                     );
+ 
   if ($socket)
   {
     $self->ClientSelect->add($socket);
     $self->IsConnected(1);
-  }
-  else
-  {
-    die($!);    # FIXME this solution is a little extreme
   }
 
   return $self->IsConnected;
@@ -184,6 +184,8 @@ sub Disconnect
 
   $self->IsConnected(0);
   $self->ClientSelect->( $self->ClientSelect->handles );
+  
+  return 1;
 }
 
 ## End Client Personality
@@ -204,8 +206,7 @@ sub GetNextRequestingClient
   my $self = shift;
 
   return undef if !$self->IsServer;
-
-  $self->Listen;    # make sure our listen socket is established
+  return undef if !$self->IsListening;
 
   # reap disconnected clients
   {
