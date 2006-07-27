@@ -14,6 +14,7 @@ use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Error;
 use RPC::Lite::Notification;
+use RPC::Lite::Signature;
 
 use RPC::Lite::Transport::TCP;
 

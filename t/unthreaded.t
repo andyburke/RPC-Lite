@@ -20,7 +20,6 @@ my $client = RPC::Lite::Client->new(
 );
 
 my $done;
-$server->HandleRequest; # FIXME this tries to get the server's TCP transport to open its socket.  need a better way to request this.  Initialize() or something?  are we being too lazy in our socket opening?
 $client->AsyncRequest(sub { is($_[0]->Result, 5); $done = 1 }, 'add', 2, 3);
 
 for (my $i = 0; $i < 10 and !$done; $i++)
