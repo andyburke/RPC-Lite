@@ -1,24 +1,25 @@
 package RPC::Lite::Serializer::JSON;
 
 use strict;
+use base qw( RPC::Lite::Serializer );
 
 use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Notification;
 use RPC::Lite::Error;
 
+our $VERSION = '0.1';
+
 our $DEBUG = $ENV{DEBUG_SERIALIZER};
 
-sub new
+sub VersionSupported
 {
-  my $class = shift;
-  my $self = {};
-  bless $self, $class;
+  return 1;
 }
 
-sub CannotDeserialize
+sub GetVersion
 {
-  return 0;
+  return $VERSION;
 }
 
 sub Serialize

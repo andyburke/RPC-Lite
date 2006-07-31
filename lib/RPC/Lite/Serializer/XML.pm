@@ -1,6 +1,7 @@
 package RPC::Lite::Serializer::XML;
 
 use strict;
+use base qw( RPC::Lite::Serializer );
 
 use RPC::Lite::Request;
 use RPC::Lite::Response;
@@ -13,13 +14,6 @@ use XML::Simple;
 use Data::Dumper;
 
 our $DEBUG = $ENV{DEBUG_SERIALIZER};
-
-sub new
-{
-  my $class = shift;
-  my $self = {};
-  bless $self, $class;
-}
 
 sub VersionSupported
 {
