@@ -48,7 +48,8 @@ sub Serializer     { $_[0]->{serializer}     = $_[1] if @_ > 1; $_[0]->{serializ
 sub Transport      { $_[0]->{transport}      = $_[1] if @_ > 1; $_[0]->{transport} }
 sub IdCounter      { $_[0]->{idcounter}      = $_[1] if @_ > 1; $_[0]->{idcounter} }
 sub CallbackIdMap  { $_[0]->{callbackidmap}  = $_[1] if @_ > 1; $_[0]->{callbackidmap} }
-sub Connected      { $_[0]->{connected}  = $_[1] if @_ > 1; $_[0]->{connected} }
+sub Connected      { $_[0]->{connected}      = $_[1] if @_ > 1; $_[0]->{connected} }
+sub DieOnError     { $_[0]->{dieonerror}     = $_[1] if @_ > 1; $_[0]->{dieonerror} }
 
 =pod
 
@@ -89,6 +90,12 @@ rather than at object instantiation.  If set to true, you are required
 to call Connect() on the client object before attempting to make
 requests.
 
+=item DieOnError
+
+If true, errors from the server will die().  If false, a warning will
+be emitted (warn()) and undef will be returned from C<Request>.  True
+by default.
+
 =back
 
 =back
@@ -110,6 +117,9 @@ sub new
 
   $self->IdCounter( 1 );
   $self->CallbackIdMap( {} );
+
+  # default to death on error
+  $self->DieOnError( exists( $args->{DieOnError} ) ? $args->{DieOnError} : 1 );
 
   $self->Initialize( $args ) if ( $self->can( 'Initialize' ) );
 
@@ -215,38 +225,9 @@ sub Request
   my $self = shift;
 
   my $response = $self->RequestResponse( @_ );
-  if ( $response->isa( 'RPC::Lite::Error' ) )
-  {
-    eval { require Error; };
-    if ( !$@ )
-    {
-      if ( ref( $response->Error ) eq 'HASH' and defined $response->Error->{jsonclass}[0] )
-      {
-        my $objectInitializer = delete $response->Error->{jsonclass};
-        my ( $class, @params ) = @$objectInitializer;
-        my $errorObject = eval { $class->new( @params ) };    # FIXME pass jsonclass constructor params instead?
-        if ( $@ )
-        {
-          $errorObject = $@;                                  # FIXME improve? this will set the local eval error as the error message so the local user can see what they need to install
-        }
-        else
-        {
 
-          # brutalize the errorobject by slamming the key/value pairs straight into it without asking the accessors nicely
-          while ( my ( $key, $value ) = each %{ $response->Error } )
-          {
-            $errorObject->{$key} = $value;
-          }
-        }
-        $response->Error( $errorObject );
-      }
-    }
-
-    # this is the "simple" interface to making a request, so we just die to keep it clean for the caller
-    die( $response->Error );
-  }
-
-  return $response->Result;
+  # if it's an error (user has turned off fatal errors), return undef, otherwise return the result
+  return $response->isa( 'RPC::Lite:Error' ) ? undef : $response->Result;
 }
 
 =pod
@@ -256,8 +237,8 @@ sub Request
 Sends an asynchronous request to the server.  Takes a callback code
 reference.  After calling this, you'll probably want to call
 HandleResponse in a loop to check for a response from the server, at
-which point your callback will be executed and passed the result
-value.
+which point your callback will be executed and passed a native object
+which is the result of the call.
 
 =cut
 
@@ -269,25 +250,49 @@ sub AsyncRequest
 
   # __SendRequest returns the Id the given request was assigned
   my $requestId = $self->__SendRequest( RPC::Lite::Request->new( $methodName, \@_ ) );
-  $self->CallbackIdMap->{$requestId} = $callBack;
+  $self->CallbackIdMap->{$requestId} = [ $callBack, 0 ]; # coderef, bool: wants RPC::Lite::Response object
 }
 
 =pod
 
-=item C<RequestResponse($methodName[, param[, ...]])>
+=item C<RequestResponseObject($methodName[, param[, ...]])>
 
 Sends a request to the server.  Returns an RPC::Lite::Response object.
 
 =cut
 
 # FIXME better name?
-sub RequestResponse
+sub RequestResponseObject
 {
   my $self = shift;
 
   $self->__SendRequest( RPC::Lite::Request->new( shift, \@_ ) );    # method and params arrayref
   return $self->__GetResponse();
 }
+
+=pod
+ 
+=item C<AsyncRequestResponseObject($callBack, $methodName[, param[, ...]])>
+ 
+Sends an asynchronous request to the server.  Takes a callback code
+reference.  After calling this, you'll probably want to call
+HandleResponse in a loop to check for a response from the server, at
+which point your callback will be executed and passed an RPC::Lite::Response
+object holding the result of the call.
+ 
+=cut
+ 
+sub AsyncRequestResponseObject
+{ 
+  my $self       = shift;
+  my $callBack   = shift;
+  my $methodName = shift;
+ 
+  # __SendRequest returns the Id the given request was assigned
+  my $requestId = $self->__SendRequest( RPC::Lite::Request->new( $methodName, \@_ ) );
+  $self->CallbackIdMap->{$requestId} = [ $callBack, 1 ]; # coderef, bool: wants RPC::Lite::Response object 
+} 
+
 
 =pod
 
@@ -367,9 +372,42 @@ sub __GetResponse
     return RPC::Lite::Error->new( " Could not deserialize response !" );
   }
 
+  if ( $response->isa( 'RPC::Lite::Error' ) )
+  {
+  
+    # NOTE: We had some code here that tried to reconstruct Error.pm
+    #       objects that came over the wire, but that doesn't work very
+    #       well in other languages, along with some other drawbacks in
+    #       implementation.  We need to look more at the best way to deal
+    #       with errors.
+    
+    # this is the default, and is simplest for most users
+    if ( $self->DieOnError() )
+    {
+      die( $response->Error );
+    }
+
+    warn( $response->Error );
+  }
+
+
   if ( exists( $self->CallbackIdMap->{ $response->Id } ) )
   {
-    $self->CallbackIdMap->{ $response->Id }->( $response );
+    my ( $codeRef, $wantsResponseObject ) = @{ $self->CallbackIdMap->{ $response->Id } };
+
+    # wrap the callback in some sanity checking
+    if ( defined( $codeRef ) && ref( $codeRef ) eq 'CODE' )
+    {
+      if ( $wantsResponseObject )
+      {
+        $codeRef->( $response );
+      }
+      else
+      {
+        $codeRef->( $response->Result );
+      }
+    }
+
     delete $self->CallbackIdMap->{ $response->Id };
   }
   else
