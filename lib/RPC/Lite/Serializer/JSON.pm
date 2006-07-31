@@ -54,40 +54,40 @@ sub Serialize
     # effectively 'unbless' this thing
     $object =
       {
-        objectclass => $type,
-        method      => $object->{method},
-        params      => $object->{params}, # assume simple types, could recurse to attempt to throw real objects over the wire
-        id          => $object->{id},
+        class  => $type,
+        method => $object->{method},
+        params => $object->{params}, # assume simple types, could recurse to attempt to throw real objects over the wire
+        id     => $object->{id},
       };
   }
   elsif($type eq 'RPC::Lite::Response')
   {
     $object =
       {
-        objectclass => $type,
-        result      => $object->{result}, # assume simple types
-        error       => $object->{error},
-        id          => $object->{id},
+        class  => $type,
+        result => $object->{result}, # assume simple types
+        error  => $object->{error},
+        id     => $object->{id},
       };
   }
   elsif($type eq 'RPC::Lite::Notification')
   {
     $object =
       {
-        objectclass => $type,
-        params      => $object->{params}, # assume simple types
-        method      => $object->{method},
-        id          => $object->{id},     # will be undef
+        class  => $type,
+        params => $object->{params}, # assume simple types
+        method => $object->{method},
+        id     => $object->{id},     # will be undef
       };
   }
   elsif($type eq 'RPC::Lite::Error')
   {
     $object =
       {
-        objectclass => $type,
-        result      => $object->{result}, # undef
-        error       => $object->{error},
-        id          => $object->{id},
+        class  => $type,
+        result => $object->{result}, # undef
+        error  => $object->{error},
+        id     => $object->{id},
       };
   }
   else # try our best
@@ -114,9 +114,9 @@ sub Deserialize
 
   my $result = $object;
 
-  if(defined($object->{objectclass}))
+  if(defined($object->{class}))
   {
-    my $type = delete $object->{objectclass};
+    my $type = delete $object->{class};
     
     if($type eq 'RPC::Lite::Request')
     {
