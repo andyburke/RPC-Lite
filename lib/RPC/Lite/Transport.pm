@@ -170,6 +170,15 @@ sub Listen() { die( "Unimplemented virtual function!" ) }
 
 =back
 
+=head1 SUPPORTED TRANSPORT LAYERS
+
+=over 4
+
+=item TCP
+
+=back
+
+
 =cut
 
 1;
