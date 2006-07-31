@@ -40,6 +40,9 @@ working with other, heavier RPC APIs.
 
 =head1 EXAMPLES
 
+  ##############################################
+  # Client
+
   use strict;
 
   use RPC::Lite::Client;
@@ -64,6 +67,52 @@ working with other, heavier RPC APIs.
   my $val2   = 2;
   my $result = $client->Request( 'add', $val1, $val2 );
   # $result == 3
+
+  ###############################################
+  # Server
+
+  use strict;
+
+  use RPC::Lite::Server;
+
+  my $threaded = $ARGV[0] eq '-t' ? 1 : 0;
+
+  my $server = TestServer->new(
+    {
+      Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
+      Threaded    => $threaded,
+    }
+  );
+
+  $server->Loop;
+
+  ###########################
+
+  package TestServer;
+
+  use base qw(RPC::Lite::Server);
+
+  # Initialize is called by the base RPC::Lite::Server class
+  # You should put any initialization you want your server
+  # implementation to do in this function.  This function is
+  # not necessary, it's only called if you've implemented it.
+  # As an example, we add a signature for the 'add' method: it
+  # returns an int, and takes two ints as arguments.
+  sub Initialize
+  {
+    my $self = shift;
+
+    $self->AddSignature('add=int:int,int'); # signatures are optional
+  }
+
+  # do the addition and return the result
+  sub add
+  {
+    my ( $server, $value1, $value2 ) = @_;
+
+    return $value1 + $value2;
+  }
+
 
 =head1 AUTHORS
 
