@@ -224,7 +224,7 @@ sub Request
 {
   my $self = shift;
 
-  my $response = $self->RequestResponse( @_ );
+  my $response = $self->RequestResponseObject( @_ );
 
   # if it's an error (user has turned off fatal errors), return undef, otherwise return the result
   return $response->isa( 'RPC::Lite:Error' ) ? undef : $response->Result;
@@ -343,6 +343,7 @@ sub __SendRequest
   my $id = $self->IdCounter( $self->IdCounter + 1 );
   $request->Id( $id );
   $self->Transport->WriteRequestContent( $self->Serializer->Serialize( $request ) );
+
   return $id;
 }
 

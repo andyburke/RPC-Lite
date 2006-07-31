@@ -13,7 +13,7 @@ my $client = RPC::Lite::Client->new(
                                        Serializer => 'XML',
                                      }
                                    );    
-
+print "connected...\n";
 print "GetSingatures: \n  " . Dumper($client->Request('system.GetSignatures')) . "\n\n";
 
 print "GetSignature(add):\n  " . Dumper($client->Request('system.GetSignature', 'add')) . "\n\n";

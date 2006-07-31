@@ -94,7 +94,7 @@ sub GetRequest
     #
     #  RPC-Lite 1.0 / JSON 1.1
     #  RPC-Lite 2.2 / XML 3.2
-    if ( $requestContent =~ s|^RPC-Lite (.*?) / (.*?) (.*?)\x00|| )
+    if ( $requestContent =~ s|^RPC-Lite (.*?) / (.*?) (.*?)$|| )
     {
       my $rpcLiteVersion = $1;
       my $serializerType = $2;
@@ -120,8 +120,9 @@ sub GetRequest
     else
     {
       $self->Disconnected( 1 );
-      return;
     }
+
+    return;
   }
 
   my $request = $self->SessionManager->Serializers->{ $self->SerializerType() }->Deserialize( $requestContent );
