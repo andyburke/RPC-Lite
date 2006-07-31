@@ -1,6 +1,7 @@
 package RPC::Lite::Serializer::JSON;
 
 use strict;
+use base qw( RPC::Lite::Serializer );
 
 use RPC::Lite::Request;
 use RPC::Lite::Response;
@@ -12,13 +13,6 @@ use JSON;
 use Data::Dumper;
 
 our $DEBUG = $ENV{DEBUG_SERIALIZER};
-
-sub new
-{
-  my $class = shift;
-  my $self = {};
-  bless $self, $class;
-}
 
 sub VersionSupported
 {
@@ -60,40 +54,40 @@ sub Serialize
     # effectively 'unbless' this thing
     $object =
       {
-        jsonclass => $type,
-        method    => $object->{method},
-        params    => $object->{params}, # assume simple types, could recurse to attempt to throw real objects over the wire
-        id        => $object->{id},
+        objectclass => $type,
+        method      => $object->{method},
+        params      => $object->{params}, # assume simple types, could recurse to attempt to throw real objects over the wire
+        id          => $object->{id},
       };
   }
   elsif($type eq 'RPC::Lite::Response')
   {
     $object =
       {
-        jsonclass => $type,
-        result    => $object->{result}, # assume simple types
-        error     => $object->{error},
-        id        => $object->{id},
+        objectclass => $type,
+        result      => $object->{result}, # assume simple types
+        error       => $object->{error},
+        id          => $object->{id},
       };
   }
   elsif($type eq 'RPC::Lite::Notification')
   {
     $object =
       {
-        jsonclass => $type,
-        params    => $object->{params}, # assume simple types
-        method    => $object->{method},
-        id        => $object->{id},     # will be undef
+        objectclass => $type,
+        params      => $object->{params}, # assume simple types
+        method      => $object->{method},
+        id          => $object->{id},     # will be undef
       };
   }
   elsif($type eq 'RPC::Lite::Error')
   {
     $object =
       {
-        jsonclass => $type,
-        result    => $object->{result}, # undef
-        error     => $object->{error},
-        id        => $object->{id},
+        objectclass => $type,
+        result      => $object->{result}, # undef
+        error       => $object->{error},
+        id          => $object->{id},
       };
   }
   else # try our best
@@ -120,9 +114,9 @@ sub Deserialize
 
   my $result = $object;
 
-  if(defined($object->{jsonclass}))
+  if(defined($object->{objectclass}))
   {
-    my $type = delete $object->{jsonclass};
+    my $type = delete $object->{objectclass};
     
     if($type eq 'RPC::Lite::Request')
     {
