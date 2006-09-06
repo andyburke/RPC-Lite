@@ -32,6 +32,7 @@ are ready to have requests serviced.
 
 =cut
 
+sub CurSessionId          { $_[0]->{cursessionid}          = $_[1] if @_ > 1; $_[0]->{cursessionid} }
 sub Transports            { $_[0]->{transports}            = $_[1] if @_ > 1; $_[0]->{transports} }
 sub Sessions              { $_[0]->{sessions}              = $_[1] if @_ > 1; $_[0]->{sessions} }
 sub CurrentTransportIndex { $_[0]->{currentTransportIndex} = $_[1] if @_ > 1; $_[0]->{currentTransportIndex} }
@@ -45,6 +46,7 @@ sub new
   my $self = {};
   bless $self, $class;
 
+  $self->CurSessionId( 0 );
   $self->Sessions( {} );
   $self->Serializers( {} );
   $self->Transports( [] );
@@ -142,61 +144,75 @@ sub StartListening
     }
   }
 }
-    
 
 =pod
 
-=item GetNextReadySessionId
+=item PumpSessions()
 
-Returns the unique id of the next session that is ready to have a request serviced.  If
-there are no sessions waiting to be serviced, returns undef.
-
-This method also reaps any disconnected sessions.
+Iterates over the active sessions, calling their Pump() routine, which should
+read and process any incoming data.
 
 =cut
 
-sub GetNextReadySessionId
+sub PumpSessions
 {
   my $self = shift;
-
-  foreach my $sessionId ( keys %{ $self->Sessions } )
+  
+  $self->HandleIncomingConnections();
+  
+  foreach my $session ( values( %{ $self->Sessions } ) )
   {
-    delete $self->Sessions->{$sessionId} if $self->Sessions->{$sessionId}->Disconnected();
+    $session->Pump();
   }
-
-  my $numTransports     = scalar( @{ $self->Transports } );
-  my $transportsChecked = 0;
-  for ( my $transportIndex = $self->CurrentTransportIndex; $transportsChecked < $numTransports; ++$transportsChecked )
-  {
-    my $transport = $self->Transports->[$transportIndex];
-    my $clientId  = $transport->GetNextRequestingClient;
-
-    if ( defined( $clientId ) )
-    {
-
-      if ( !exists( $self->Sessions->{$clientId} ) )
-      {
-        $self->Sessions->{$clientId} = RPC::Lite::Session->new( $clientId, $transport, $self, undef );
-      }
-      
-      $self->CurrentTransportIndex( ( $transportIndex + 1 ) % $numTransports );
-      return $clientId;
-    }
-    
-    $transportIndex = ( $transportIndex + 1 ) % $numTransports;
-  }
-
-  return undef;
 }
 
 =pod
 
-=item GetSession( $sessionId )
+=item GetReadySessions()
 
-Returns the session whose id matches C<$sessionId>.  If no session exists with such an id,
-returns undef.
+Returns an array of sessions with requests pending.
 
 =cut
+
+sub GetReadySessions
+{
+  my $self = shift;
+
+  # FIXME this could be better, i bet
+  # loop once over them to reap all disconnected sessions
+  foreach my $session ( values( %{ $self->Sessions } ) )
+  {
+    delete $self->Sessions->{ $session->Id() } if ( $session->Disconnected() );
+  }
+
+  my @readySessions;
+    
+  # FIXME fairness problems here
+  # loop a second time looking for ready sessions
+  foreach my $session ( values( %{ $self->Sessions } ) )
+  {
+    # return a session if it has queued messages
+    push( @readySessions, $session ) if ( @{ $session->MessageQueue() } );
+  }
+
+  return @readySessions;
+}
+
+sub HandleIncomingConnections
+{
+  my $self = shift;
+
+  foreach my $transport ( @{ $self->Transports } )  
+  {
+    my $transportInstance = $transport->GetNewConnection();
+    
+    if ( defined( $transportInstance ) )
+    {
+      $self->Sessions()->{ $self->CurSessionId } = RPC::Lite::Session->new( $self->CurSessionId(), $transportInstance, $self );
+      $self->CurSessionId( $self->CurSessionId + 1 );
+    }
+  }
+}
 
 sub GetSession
 {

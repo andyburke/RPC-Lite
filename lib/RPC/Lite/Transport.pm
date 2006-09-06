@@ -9,8 +9,7 @@ RPC::Lite::Transport -- Transport base class.
 =head1 DESCRIPTION
 
 RPC::Lite::Transport is the base for implementing transport layers
-for RPC::Lite.  Transports have two 'personalities': client and server.
-All transports must implement the following methods:
+for RPC::Lite.
 
 =cut
 
@@ -26,46 +25,25 @@ sub new
 
 =over 4
 
-=item Client Personality
+=item ReadData( [$timeout] )
 
-=over 4
+Attempts to read data from the stream within the
+(optional) timeout period. 
 
 =cut
+
+sub ReadData() { die( "Unimplemented virtual function!" ) }
 
 =pod
 
-=item IsClient()
+=item WriteData( $data )
 
-Returns a boolean value indicating whether the transport is in the
-'Client' personality.
-
-=cut
-
-sub IsClient() { die( "Unimplemented virtual function!" ) }
-
-=pod
-
-=item ReadResponseContent( [$timeout] )
-
-Attempts to read a response from the connection, delimited by the null
-character within the timeout. (Note that the content returned should
-*NOT* include the terminating null character.)
+Writes $data to the stream.  Returns the number of bytes written
+or undef if there was an error.
 
 =cut
 
-sub ReadResponseContent() { die( "Unimplemented virtual function!" ) }
-
-=pod
-
-=item WriteRequestContent( $content )
-
-Writes $content to the connection, adding a terminating null character
-delimiter.  Returns the number of bytes written or undef if there was
-an error.
-
-=cut
-
-sub WriteRequestContent() { die( "Unimplemented virtual function!" ) }
+sub WriteData() { die( "Unimplemented virtual function!" ) }
 
 =pod
 
@@ -91,71 +69,6 @@ sub Disconnect() { die( "Unimplemented virtual function!" ) }
 
 =pod
 
-=back
-
-=back
-
-=over 4
-
-=item Server Personality
-
-=over 4
-
-=cut
-
-=pod
-
-=item IsServer()
-
-Returns a boolean value indicating whether the transport is in the
-'Server' personality.
-
-=cut
-
-sub IsServer() { die( "Unimplemented virtual function!" ) }
-
-=pod
-
-=item GetNextRequestingClient()
-
-Returns a unique identifier for the next client with a pending request.
-This identifier will be used at higher levels for reading the request
-content.
-  
-This method should also reap any disconnected clients.
-
-=cut
-
-sub GetNextRequestingClient() { die( "Unimplemented virtual function!" ) }
-
-=pod
-
-=item ReadRequestContent( $clientId )
-
-Read and return the content of a request from the client specified
-by the given client id.
-  
-If there was an error or the client was disconnected, return undef.
-
-=cut
-
-sub ReadRequestContent() { die( "Unimplemented virtual function!" ) }
-
-=pod
-
-=item WriteResponseContent( $clientId, $content )
-
-Write $content (adding a terminating null character) to the client
-specified by the given client id.
-  
-Returns a boolean indicating success or failure.
-
-=cut
-
-sub WriteResponseContent() { die( "Unimplemented virtual function!" ) }
-
-=pod
-
 =item Listen()
 
 Begin listening for incoming connections.  
@@ -163,6 +76,17 @@ Begin listening for incoming connections.
 =cut
 
 sub Listen() { die( "Unimplemented virtual function!" ) }
+
+=pod
+
+=item GetNewConnection()
+
+Checks for a new incoming connection and returns an RPC::Lite::Transport
+object of the proper type if there is one, undef otherwise.
+
+=cut
+
+sub GetNewConnection() { die( "Unimplemented virtual function!" ) }
 
 =pod
 

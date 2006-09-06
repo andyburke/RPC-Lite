@@ -3,6 +3,7 @@ package RPC::Lite::Client;
 use strict;
 
 use RPC::Lite;
+use RPC::Lite::MessageQuantizer;
 use RPC::Lite::Request;
 use RPC::Lite::Response;
 use RPC::Lite::Error;
@@ -50,6 +51,9 @@ sub IdCounter      { $_[0]->{idcounter}      = $_[1] if @_ > 1; $_[0]->{idcounte
 sub CallbackIdMap  { $_[0]->{callbackidmap}  = $_[1] if @_ > 1; $_[0]->{callbackidmap} }
 sub Connected      { $_[0]->{connected}      = $_[1] if @_ > 1; $_[0]->{connected} }
 sub DieOnError     { $_[0]->{dieonerror}     = $_[1] if @_ > 1; $_[0]->{dieonerror} }
+sub MessageQueue     { $_[0]->{messagequeue}  = $_[1] if @_ > 1; $_[0]->{messagequeue} }
+sub MessageQuantizer { $_[0]->{messagequantizer}  = $_[1] if @_ > 1; $_[0]->{messagequantizer} }
+sub Stream           { $_[0]->{stream}  = $_[1] if @_ > 1; $_[0]->{stream} }
 
 =pod
 
@@ -112,11 +116,15 @@ sub new
 
   $self->Connected( 0 );
   
+  $self->MessageQuantizer( RPC::Lite::MessageQuantizer->new() );
+  
   $self->__InitializeSerializer( $args->{Serializer} );
   $self->__InitializeTransport( $args->{Transport} );
 
+  $self->MessageQueue( [] );
   $self->IdCounter( 1 );
   $self->CallbackIdMap( {} );
+  $self->Stream( '' );
 
   # default to death on error
   $self->DieOnError( exists( $args->{DieOnError} ) ? $args->{DieOnError} : 1 );
@@ -206,7 +214,7 @@ sub Connect
   return 0 if ( !$self->Transport->Connect() );
 
   my $handshakeContent = sprintf( $RPC::Lite::HANDSHAKEFORMATSTRING, $RPC::Lite::VERSION, $self->SerializerType(), $self->Serializer->GetVersion() );
-  $self->Transport->WriteRequestContent( $handshakeContent );
+  $self->Transport->WriteData( $self->MessageQuantizer->Pack( $handshakeContent ) );
   
   $self->Connected( 1 );
   return 1;
@@ -342,7 +350,8 @@ sub __SendRequest
 
   my $id = $self->IdCounter( $self->IdCounter + 1 );
   $request->Id( $id );
-  $self->Transport->WriteRequestContent( $self->Serializer->Serialize( $request ) );
+  my $serializedContent = $self->Serializer->Serialize( $request );
+  $self->Transport->WriteData( $self->MessageQuantizer->Pack( $serializedContent ) );
 
   return $id;
 }
@@ -352,21 +361,34 @@ sub __GetResponse
   my $self    = shift;
   my $timeout = shift;
 
-  my $responseContent = $self->Transport->ReadResponseContent( $timeout );
-
-  if ( !defined $responseContent or !length $responseContent )
+  # if our queue is empty, try to get some new messages
+  my $message;
+  if ( !@{ $self->MessageQueue } )
   {
-    if ( $timeout or $self->Transport->Timeout )
+    my $newData = $self->Transport->ReadData( $timeout );
+
+    if ( !defined( $newData ) or !length( $newData ) )
     {
-      return;    # no error, just no response yet
+      if ( $timeout or $self->Transport->Timeout )
+      {
+        return;    # no error, just no response yet
+      }
+      else
+      {
+        return RPC::Lite::Error->new( " Error reading data from server !" );
+      }
     }
-    else
-    {
-      return RPC::Lite::Error->new( " Error reading data from server !" );
-    }
+
+    $self->Stream( $self->Stream . $newData );
+
+    $self->__ProcessStream();
   }
 
-  my $response = $self->Serializer->Deserialize( $responseContent );
+  $message= shift @{ $self->MessageQueue() };
+
+  return undef if ( !defined( $message ) );
+
+  my $response = $self->Serializer->Deserialize( $message );
 
   if ( !defined( $response ) )
   {
@@ -387,10 +409,11 @@ sub __GetResponse
     {
       die( $response->Error );
     }
-
-    warn( $response->Error );
+    else
+    {
+      warn( $response->Error );
+    }
   }
-
 
   if ( exists( $self->CallbackIdMap->{ $response->Id } ) )
   {
@@ -417,4 +440,19 @@ sub __GetResponse
   }
 }
 
+# FIXME this is in Session, it's a shame it's cut and pasted here
+sub __ProcessStream
+{
+  my $self = shift;
+  
+  return undef if ( !length( $self->Stream ) );
+
+  my $quantized = $self->MessageQuantizer->Quantize( $self->Stream );
+  
+  push( @{$self->MessageQueue}, @{ $quantized->{messages} } );
+  
+  $self->Stream( $quantized->{remainder} );
+
+  return scalar( @{$self->MessageQueue} );
+}
 1;

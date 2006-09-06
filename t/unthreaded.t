@@ -15,7 +15,7 @@ my $gotResponse;
 # FIXME should probe ports to find an open one. will not be totally race-proof but that shouldn't really be a problem. we could add a constructor param to allow passing in the listen socket... that's probably best.
 my $server = TestServer->new(
   {
-    Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost,Timeout=0.1' ],
+    Transports  => [ 'TCP:Port=10000,Timeout=0.1' ],
   }
 );
 
@@ -89,7 +89,7 @@ sub Pump
   $gotResponse = 0;
   for (my $i = 0; $i < 10 and !$gotResponse; ++$i) 
   {        
-    $server->HandleRequest; 
+    $server->HandleRequests; 
     $client->HandleResponse; 
   }
 }

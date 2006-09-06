@@ -10,7 +10,7 @@ my $threaded = $ARGV[0] eq '-t' ? 1 : 0;
 
 my $server = TestServer->new(
   {
-    Transports  => [ 'TCP:ListenPort=10000,LocalAddr=localhost' ],
+    Transports  => [ 'TCP:Port=10000' ],
     Threaded    => $threaded,
   }
 );

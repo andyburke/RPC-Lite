@@ -246,48 +246,48 @@ sub Loop
 
   while ( 1 )
   {
-    $self->HandleRequest;
-    $self->HandleResponses;
+    $self->HandleRequests();
+    $self->HandleResponses();
   }
 }
 
-
 =pod
 
-=item C<HandleRequest>
+=item C<HandleRequests>
 
-Handles a single request, dispatching it to the underlying RPC implementation class, and returns.
+Handles all pending requests, dispatching them to the underlying RPC implementation class.
 
 Instead of calling C<Loop> some servers may implement their own update loops,
-calling C<HandleRequest> repeatedly.
+calling C<HandleRequests> repeatedly.
 
 =cut
 
-sub HandleRequest
+sub HandleRequests
 {
   my $self = shift;
 
-  my $sessionId = $self->SessionManager->GetNextReadySessionId();
-  return if !defined( $sessionId );
+  $self->SessionManager->PumpSessions();
 
-  my $session = $self->SessionManager->GetSession( $sessionId );
-  return if !defined( $session );
+  my @readySessions = $self->SessionManager->GetReadySessions();
 
-  my $request = $session->GetRequest();
-  return if !defined $request;
-
-  if ( $self->Threaded )    # asynchronous operation
+  foreach my $session ( @readySessions )
   {
-    __Debug( "passing request to thread pool" );
-    # god, dirty, we need to save this return value or the
-    # results will be discarded...
-    my $jobId = $self->ThreadPool->job( $sessionId, $request );
-    $self->PoolJobs->{$jobId} = $sessionId;
-  }
-  else                      # synchronous
-  {
-    my $result = $self->__DispatchRequest( $sessionId, $request );
-    $session->Write( $result ) if defined( $result );
+    my $request = $session->GetRequest();
+    next if !defined $request;
+
+    if ( $self->Threaded )    # asynchronous operation
+    {
+      __Debug( "passing request to thread pool" );
+      # god, dirty, we need to save this return value or the
+      # results will be discarded...
+      my $jobId = $self->ThreadPool->job( $request );
+      $self->PoolJobs->{$jobId} = $session->Id();
+    }
+    else                      # synchronous
+    {
+      my $result = $self->__DispatchRequest( $request );
+      $session->Write( $result ) if defined( $result );
+    }
   }
 }
 
@@ -372,7 +372,8 @@ sub __FindMethod
 
 sub __DispatchRequest
 {
-  my ( $self, $sessionId, $request ) = @_;
+  my $self = shift;
+  my $request = shift;
 
   my $method = $self->__FindMethod( $request->Method );
   my $response = undef;
