@@ -12,7 +12,8 @@ use RPC::Lite;
 
 my $gotResponse; 
 
-# FIXME should probe ports to find an open one. will not be totally race-proof but that shouldn't really be a problem. we could add a constructor param to allow passing in the listen socket... that's probably best.
+# FIXME should probe ports to find an open one. will not be totally race-proof but that shouldn't really be a problem.
+#       we could add a constructor param to allow passing in the listen socket... that's probably best.
 my $server = TestServer->new(
   {
     Transports  => [ 'TCP:Port=10000,Timeout=0.1' ],

@@ -18,6 +18,7 @@ sub IsConnected  { $_[0]->{isconnected}  = $_[1] if @_ > 1; $_[0]->{isconnected}
 sub Timeout      { $_[0]->{timeout}      = $_[1] if @_ > 1; $_[0]->{timeout} }
 sub IsListening  { $_[0]->{islistening}  = $_[1] if @_ > 1; $_[0]->{islistening} }
 sub Selector     { $_[0]->{selector}     = $_[1] if @_ > 1; $_[0]->{selector} }
+sub SocketFD     { $_[0]->{socketfd}     = $_[1] if @_ > 1; $_[0]->{socketfd} }
 
 our $maxReadSize = 1024 * 128; # 128kb max read
 
@@ -140,6 +141,7 @@ sub GetNewConnection
   $socket = $socket->accept();
     
   my $newTransport = RPC::Lite::Transport::TCP->new();
+  $newTransport->Timeout( .1 );
   $newTransport->Selector()->add( $socket );
   $newTransport->IsConnected( 1 );
   
