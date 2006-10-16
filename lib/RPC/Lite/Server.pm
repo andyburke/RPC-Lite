@@ -210,6 +210,7 @@ sub __InitializeThreadPool
   eval "use Thread::Pool";
   if ( $@ )
   {
+    __Debug( 'threading requested, but not available' );
     warn "Disabling threading for lack of Thread::Pool module.";
     $self->Threaded( 0 );
   }

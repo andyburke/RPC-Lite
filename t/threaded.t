@@ -6,9 +6,19 @@ use RPC::Lite;
 
 my @serializerTypes = qw( XML JSON );
 
-my  $numTests = 11 * @serializerTypes;
 
-plan tests => $numTests;
+my $threadTestServer = RPC::Lite::Server->new( { Threaded => 1 } );
+if ( $threadTestServer->Threaded )
+{
+  my $numTests = 6 * @serializerTypes;
+  plan tests => $numTests;
+}
+else
+{
+  plan skip_all => 'could not enable threading';
+}
+undef $threadTestServer;
+
 
 my $server_control_pipe = IO::Pipe->new();
 
@@ -19,7 +29,7 @@ if ( my $pid = fork() ) # parent - client
 
   foreach my $serializerType ( @serializerTypes )
   {
-  
+
     $client = RPC::Lite::Client->new(
       {
         Transport  => 'TCP:Host=localhost,Port=10000,Timeout=0.1',
@@ -29,9 +39,23 @@ if ( my $pid = fork() ) # parent - client
 
     ok( defined( $client ), "$serializerType client construction" );
 
-    # should really do async requests, and fail if no response after N seconds
-    is( $client->Request('slow'), 2,    'method call 1');
-    is( $client->Request('method2'), 'foo', 'method call 2');
+    my ($gotSlow, $gotFast);
+    $client->AsyncRequest(sub {
+                            $gotSlow = 1;
+                            is( $_[0], 'slow', 'slow call returned correct value' );
+                            ok( $gotFast, 'slow returned after fast' );
+                          },
+                          'slow');
+    $client->AsyncRequest(sub {
+                            $gotFast = 1;
+                            is( $_[0], 'fast', 'fast call returned correct value' );
+                            ok( !$gotSlow, 'fast returned before slow' );
+                          },
+                          'fast');
+
+    my $start = time;
+    $client->HandleResponse until ($gotFast and $gotSlow) or (time > $start + 20);
+    ok ( $gotFast && $gotSlow, 'got responses from both calls');
 
   }
 
@@ -48,9 +72,10 @@ elsif ( defined( $pid ) ) # child - server
   my $server = TestServer->new(
     {
       Transports  => [ 'TCP:Port=10000,Timeout=0.1' ],
+      Threaded    => 1,
     }
   );
-  
+
   $server->HandleRequests until $select->can_read(0);
 
 }
@@ -65,13 +90,6 @@ else
 package TestServer;
 
 use base qw(RPC::Lite::Server);
-
-sub Initialize
-{
-  my $self = shift;
-
-  $self->AddSignature('add=int:int,int');
-}
 
 sub slow
 {
