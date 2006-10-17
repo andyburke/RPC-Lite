@@ -205,18 +205,13 @@ sub __InitializeThreadPool
 {
   my $self = shift;
 
+  # abort if threading not requested, or already initialized
   return if !$self->Threaded or $self->ThreadPool;
 
-  eval "use Thread::Pool";
-  if ( $@ )
-  {
-    __Debug( 'threading requested, but not available' );
-    warn "Disabling threading for lack of Thread::Pool module.";
-    $self->Threaded( 0 );
-  }
-  else
+  if ( __PACKAGE__->IsThreadingSupported )
   {
     __Debug( 'threading enabled' );
+    eval "use Thread::Pool";
     my $pool = Thread::Pool->new(
                                   {
                                     'workers' => $self->WorkerThreads,
@@ -226,10 +221,36 @@ sub __InitializeThreadPool
     $self->ThreadPool( $pool );
     $self->PoolJobs( {} );
   }
+  else
+  {
+    __Debug( 'threading requested, but not available' );
+    warn "Disabling threading for lack of Thread::Pool module."; # FIXME is this useful, or is the __Debug enough?
+    $self->Threaded( 0 );
+  }
 }
 
 ############
 # These are public methods that server authors may call.
+
+=pod
+
+=item C<RPC::Lite::Server->IsThreadingSupported>
+
+Returns true if server multithreading support is available, false otherwise.
+
+WARNING: Calling this before forking and doing some threading stuff in the child process
+may hang the child.  The ithreads docs even say it doesn't play well with fork().  It is
+just mentioned here because it isn't obvious that calling this method does any thread stuff.
+
+=cut
+
+sub IsThreadingSupported
+{
+  # FIXME need to make 'use threads' conditional on having ithreads available, otherwise a perl compiled without threads will just die when using this module.
+  eval "use Thread::Pool";
+  return $@ ? 0 : 1;
+}
+
 
 =pod
 
