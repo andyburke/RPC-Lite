@@ -7,25 +7,33 @@ use RPC::Lite;
 my @serializerTypes = qw( XML JSON );
 
 
-my $threadTestServer = RPC::Lite::Server->new( { Threaded => 1 } );
-if ( $threadTestServer->Threaded )
-{
-  my $numTests = 6 * @serializerTypes;
-  plan tests => $numTests;
-}
-else
-{
-  plan skip_all => 'could not enable threading';
-}
-undef $threadTestServer;
-
-
 my $server_control_pipe = IO::Pipe->new();
+my $client_control_pipe = IO::Pipe->new();
 
 if ( my $pid = fork() ) # parent - client
 {
 
+  $client_control_pipe->reader;
   $server_control_pipe->writer;
+  $server_control_pipe->autoflush;
+
+  # wait for the server to tell us it's listening
+  $response = <$client_control_pipe>; # block until we get a response
+
+  if ( $response =~ /listening/ )
+  {
+    my $numTests = 6 * @serializerTypes;
+    plan tests => $numTests;
+  }
+  elsif ( $response =~ /threading/ )
+  {
+    plan skip_all => 'could not enable threading';
+  }
+  else
+  {
+    plan tests => 1;
+    fail('unexpected response from child process');
+  }
 
   foreach my $serializerType ( @serializerTypes )
   {
@@ -59,15 +67,22 @@ if ( my $pid = fork() ) # parent - client
 
   }
 
-  sleep(1);
-  $server_control_pipe->print("\n");
+  # tell the server we're done
+  $server_control_pipe->print("done\n");
 
 }
 elsif ( defined( $pid ) ) # child - server
 {
 
   $server_control_pipe->reader;
-  my $select = IO::Select->new([$server_control_pipe]);
+  $client_control_pipe->writer;
+  $client_control_pipe->autoflush;
+
+  if ( ! RPC::Lite::Server->IsThreadingSupported )
+  {
+    $client_control_pipe->print("no thredsfading\n");
+    exit;
+  }
 
   my $server = TestServer->new(
     {
@@ -76,12 +91,22 @@ elsif ( defined( $pid ) ) # child - server
     }
   );
 
-  $server->HandleRequests until $select->can_read(0);
+  # tell the client we're listening
+  $client_control_pipe->print("listening\n");
+
+  # run the server loop until the client tells us it's done
+  my $select = IO::Select->new([$server_control_pipe]);
+  until ( $select->can_read(0) )
+  {
+    $server->HandleRequests;
+    $server->HandleResponses;
+  }
 
 }
 else
 {
-  print "failed to spawn server process\n";
+  plan tests => 1;
+  fail('failed to spawn server process');
 }
 
 ###########################
