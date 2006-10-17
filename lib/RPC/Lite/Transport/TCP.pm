@@ -55,7 +55,6 @@ sub ReadData
 
   # FIXME this logic still won't allow undef (infinite timeout) to be passed explicitly
   defined $timeout or $timeout = $self->Timeout;    # defaults to undef if not set by user (see new())
-
   return undef if !$self->IsConnected;
 
   my $content = '';
@@ -69,9 +68,9 @@ sub ReadData
   {
     # try to read the max read size
     $totalBytes = $socket->sysread( $content, $maxReadSize );
-    
+
     # if there was an error, return undef
-    return undef if $!;
+    return undef if $! or !$socket->connected;
   }
 
   # return the content we read
@@ -144,6 +143,7 @@ sub GetNewConnection
   $newTransport->Timeout( .1 );
   $newTransport->Selector()->add( $socket );
   $newTransport->IsConnected( 1 );
+  $newTransport->Timeout(.01); # FIXME propagate this from $self ?  Arbitrarily picking .01 isn't so nice.
   
   return $newTransport;
 }
