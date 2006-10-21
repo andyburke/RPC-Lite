@@ -15,6 +15,10 @@ To install this module type the following:
 
 DEPENDENCIES
 
+***NOTE: This module requires that your perl be compiled with
+         ithreads support, even if you're not planning on using
+         threading.
+
 This module requires these other modules and libraries:
 
   REQUIRED
