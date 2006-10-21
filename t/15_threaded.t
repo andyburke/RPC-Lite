@@ -25,14 +25,14 @@ if ( my $pid = fork() ) # parent - client
     my $numTests = 6 * @serializerTypes;
     plan tests => $numTests;
   }
-  elsif ( $response =~ /threading/ )
+  elsif ( $response =~ /no threading/ )
   {
     plan skip_all => 'could not enable threading';
   }
   else
   {
     plan tests => 1;
-    fail('unexpected response from child process');
+    fail('unexpected response from child process: ' . $response );
   }
 
   foreach my $serializerType ( @serializerTypes )
@@ -80,7 +80,7 @@ elsif ( defined( $pid ) ) # child - server
 
   if ( ! RPC::Lite::Server->IsThreadingSupported )
   {
-    $client_control_pipe->print("no thredsfading\n");
+    $client_control_pipe->print("no threading\n");
     exit;
   }
 

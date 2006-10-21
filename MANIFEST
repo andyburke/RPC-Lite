@@ -9,10 +9,12 @@ examples/client_fast.pl
 examples/client_slow.pl
 examples/server.pl
 t/00_basic.t
-t/unthreaded.t
+t/12_unthreaded.t
+t/15_threaded.t
 lib/RPC/Lite.pm
 lib/RPC/Lite/Client.pm
 lib/RPC/Lite/Error.pm
+lib/RPC/Lite/MessageQuantizer.pm
 lib/RPC/Lite/Notification.pm
 lib/RPC/Lite/Request.pm
 lib/RPC/Lite/Response.pm
@@ -24,5 +26,6 @@ lib/RPC/Lite/Server.pm
 lib/RPC/Lite/Session.pm
 lib/RPC/Lite/SessionManager.pm
 lib/RPC/Lite/Signature.pm
+lib/RPC/Lite/Threading.pm
 lib/RPC/Lite/Transport/TCP.pm
 lib/RPC/Lite/Transport.pm
