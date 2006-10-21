@@ -238,6 +238,15 @@ sub __InitializeThreadPool
 
 Returns true if server multithreading support is available, false otherwise.
 
+This is a class method, eg:
+
+  my $server = RPC::Lite::Server->new(
+    {
+      ...,
+      Threaded => RPC::Lite::Server::IsThreadingSupported() ? 1 : 0,
+    }
+  );
+
 WARNING: Calling this before forking and doing some threading stuff in the child process
 may hang the child.  The ithreads docs even say it doesn't play well with fork().  It is
 just mentioned here because it isn't obvious that calling this method does any thread stuff.
