@@ -234,7 +234,7 @@ sub __InitializeThreadPool
 
 =pod
 
-=item C<RPC::Lite::Server->IsThreadingSupported>
+=item C<IsThreadingSupported>
 
 Returns true if server multithreading support is available, false otherwise.
 
@@ -256,9 +256,8 @@ sub IsThreadingSupported
 
 =item C<Loop>
 
-Loops, calling HandleRequest, and does not return.  Useful for a trivial server that doesn't need
-to do anything else in its event loop.  Transport subclasses should not override this as a server
-process may skip Loop, calling HandleRequest directly.
+Loops, calling HandleRequest, and HandleResponses, does not return.  Useful for a trivial server that doesn't need
+to do anything else in its event loop.
 
 =cut
 
@@ -315,37 +314,6 @@ sub HandleRequests
 
 =pod
 
-=item C<AddSignature>
-
-Adds a signature for the given method.  Signatures can be used to verify
-that clients and servers agree on method specifications.  However, they
-are optional because most RPC implementations are done with close
-coupling of server and client development where developers are unlikely
-to need verification of server/client agreement.
-
-See 'perldoc RPC::Lite::Signature' for details on the format for specifying
-signatures.
-
-=cut
-
-sub AddSignature
-{
-  my $self            = shift;
-  my $signatureString = shift;
-
-  my $signature = RPC::Lite::Signature->new( $signatureString );
-
-  if ( !$self->can( $signature->MethodName() ) )
-  {
-    warn( "Attempted to add a signature for a method [" . $signature->MethodName . "] we are not capable of!" );
-    return;
-  }
-
-  $self->Signatures->{ $signature->MethodName } = $signature;
-}
-
-=pod
-
 =item C<HandleResponses>
 
 When threading is enabled, this method looks for completed requests
@@ -374,6 +342,37 @@ sub HandleResponses
     }
     delete $self->PoolJobs->{$jobId};
   }
+}
+
+=pod
+
+=item C<AddSignature>
+
+Adds a signature for the given method.  Signatures can be used to verify
+that clients and servers agree on method specifications.  However, they
+are optional because most RPC implementations are done with close
+coupling of server and client development where developers are unlikely
+to need verification of server/client agreement.
+
+See RPC::Lite::Signature for details on the format for specifying
+signatures.
+
+=cut
+
+sub AddSignature
+{
+  my $self            = shift;
+  my $signatureString = shift;
+
+  my $signature = RPC::Lite::Signature->new( $signatureString );
+
+  if ( !$self->can( $signature->MethodName() ) )
+  {
+    warn( "Attempted to add a signature for a method [" . $signature->MethodName . "] we are not capable of!" );
+    return;
+  }
+
+  $self->Signatures->{ $signature->MethodName } = $signature;
 }
 
 #

@@ -35,8 +35,23 @@ RPC::Lite - A lightweight yet flexible framework for remote process communicatio
 =head1 DESCRIPTION
 
 RPC::Lite is intended to be a lightweight, easy-to-use yet flexible
-and powerful RPC implementation.  It was inspired by the headaches of
-working with other, heavier RPC APIs.
+and powerful RPC implementation.  It was inspired by the headaches
+of working with other, heavier RPC APIs.
+
+RPC::Lite does not require versioning or signatures but provides
+facilities to enable them.  RPC::Lite is developed under the
+assumption that for most RPC tasks, the programmer is intimately
+familiar with both the client and server side of the application
+and that it is unlikely that clients and servers will have APIs
+change underneath them without the programmer being aware.
+
+With the above assumptions, it becomes easier to develop simple
+(or even not-so-simple) RPC services and clients without jumping
+through the many hoops other RPC implementation require for even
+the most trivial implementations.
+
+RPC::Lite also supports threading if the Thread::Pool module is
+available.  See RPC::Lite::Threading for more information.
 
 =head1 EXAMPLES
 
@@ -48,21 +63,26 @@ working with other, heavier RPC APIs.
   use RPC::Lite::Client;
 
   # this will create a client object that will try to connect to
-  # 192.168.0.3:10000 and use the JSON serializer.
+  # 192.168.0.3:10000 via TCP and use the JSON serializer.
   my $client = RPC::Lite::Client->new(
-                                       {
-                                         Transport  => 'TCP:Host=192.168.0.3,Port=10000',
-                                         Serializer => 'JSON',
-                                       }
-                                     );    
+    {
+      Transport  => 'TCP:Host=192.168.0.3,Port=10000',
+      Serializer => 'JSON',
+    }
+  );    
 
   # print out the results of a call to the system.GetSignatures method
-  print "GetSingatures: \n  " . Dumper($client->Request('system.GetSignatures')) . "\n\n";
+  print "GetSingatures: ";
+  print Dumper( $client->Request('system.GetSignatures') );
+  print "\n";
 
   # print out the results of calling system.GetSignature( 'add' )
-  print "GetSignature(add):\n  " . Dumper($client->Request('system.GetSignature', 'add')) . "\n\n";
+  print "GetSignature(add): ";
+  print $client->Request('system.GetSignature', 'add');
+  print "\n";
 
-  # ask the server to add two values together and return the result, $result = 3
+  # ask the server to add two values together and 
+  # return the result, $result = 3
   my $val1   = 1;
   my $val2   = 2;
   my $result = $client->Request( 'add', $val1, $val2 );

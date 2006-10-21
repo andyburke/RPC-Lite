@@ -31,7 +31,7 @@ RPC::Lite::Client - Lightweight RPC client framework.
     }
   );
 
-  my $result = $client->Request('Hello World');
+  my $result = $client->Request('HelloWorld');
 
 =head1 DESCRIPTION
 
