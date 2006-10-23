@@ -4,7 +4,7 @@ use strict;
 
 # documentation/placeholder package
 
-our $VERSION = '0.10';
+our $VERSION = '0.20';
 our $HANDSHAKEFORMATSTRING = 'RPC-Lite %s / %s %s';
 
 use RPC::Lite::Client;
