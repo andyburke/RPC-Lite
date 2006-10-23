@@ -3,9 +3,6 @@ package RPC::Lite::Transport::TCP;
 use strict;
 use base qw(RPC::Lite::Transport);
 
-use threads;
-use threads::shared;
-
 use IO::Socket;
 use IO::Select;
 
