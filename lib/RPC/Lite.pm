@@ -135,6 +135,10 @@ available.  See RPC::Lite::Threading for more information.
 
 =head1 SUPPORT
 
+Please visit the project homepage at:
+
+  http://www.rpc-lite.org/
+
 If you are interested in discussing RPC::Lite, please consider joining
 the email list:
 
