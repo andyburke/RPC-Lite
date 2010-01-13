@@ -95,7 +95,7 @@ sub Serialize
     # JSON should unbless this for us...
   }
 
-  my $data = objToJson( $object, { convblessed => 1 } );
+  my $data = to_json( $object, { convert_blessed => 1 } );
 
   $self->_Debug('Serializing', Dumper($object), $data) if($DEBUG);
 
@@ -109,7 +109,7 @@ sub Deserialize
 
   length($data) or return undef;
   
-  my $object = jsonToObj( $data, { convblessed => 1 } );
+  my $object = from_json( $data, { convert_blessed => 1 } );
   $self->HandleJSONsNotStringCrap(\$object);
 
   my $result = $object;
