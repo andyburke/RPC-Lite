@@ -67,7 +67,7 @@ sub ReadData
     $totalBytes = $socket->sysread( $content, $maxReadSize );
 
     # if there was an error, return undef
-    return undef if $! or !$socket->connected;
+    return undef if $! or !$socket->connected or $totalBytes == 0;
   }
 
   # return the content we read
